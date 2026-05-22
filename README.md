@@ -13,22 +13,32 @@
 
 ```bash
 # 用 uv（推荐，自动管理依赖）
-uv run --with numpy --with pandas python -X utf8 main.py
+uv run --with numpy --with pandas --with openpyxl python -X utf8 main.py
 
 # 或者用本地 Python（需先 pip install）
-pip install numpy pandas
+pip install numpy pandas openpyxl
 python main.py
 ```
 
-跑完会在控制台看到 9 张报表（核心指标 / 分年 / 风险贡献 / 宏观情景 / 关键事件 / 滚动统计 / 蒙特卡洛 / 持仓 / 推荐），同时把净值曲线和汇总指标写到 `output/`。
+跑完会在控制台看到 9 张报表（核心指标 / 分年 / 风险贡献 / 宏观情景 / 关键事件 / 滚动统计 / 蒙特卡洛 / 持仓 / 推荐），同时把以下文件写到 `output/`：
+
+| 文件 | 说明 |
+|---|---|
+| `report.xlsx` | ⭐ Excel 多 sheet 综合报告（11 sheet，带格式 / 高亮 / 负数标红）|
+| `report.md` | Markdown 综合报告（GitHub / IDE 直接渲染）|
+| `nv_curves.csv` | 9 条净值曲线（宽表，画图用）|
+| `summary.json` | 核心指标（CI sanity check 也读这个）|
+| `weights.csv` | 三策略权重 |
 
 ## 📋 命令行选项
 
 ```bash
-python main.py                跑回测（默认）
+python main.py                跑回测（默认输出 5 类文件）
 python main.py --fetch        先补拉缺失数据再回测
 python main.py --fetch-only   只拉数据不回测
 python main.py --force-fetch  强制重拉所有数据（覆盖）
+python main.py --no-excel     跳过 Excel 综合报告
+python main.py --no-markdown  跳过 Markdown 综合报告
 python main.py --help         查看完整帮助
 ```
 
