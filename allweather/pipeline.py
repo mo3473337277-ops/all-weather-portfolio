@@ -106,8 +106,13 @@ def step_5_print_reports(metrics, boot, weights):
     reports.print_summary_recommendation()
 
 
-def step_6_save_outputs(nv_results, metrics, weights):
-    """Step 6: 保存净值曲线、汇总 JSON、权重 CSV。"""
+def step_6_save_outputs(nv_results, metrics, weights, boot=None,
+                         excel: bool = True, markdown: bool = True):
+    """Step 6: 保存净值曲线 / 汇总 JSON / 权重 CSV / Excel / Markdown。
+
+    excel 和 markdown 都需要 boot（蒙特卡洛结果）。如果只想跑基础三件套，
+    传 boot=None 并把两个开关关掉即可。
+    """
     print("\n" + "─" * 60)
     print("Step 6/6: 保存结果文件")
     print("─" * 60)
@@ -118,12 +123,44 @@ def step_6_save_outputs(nv_results, metrics, weights):
     print(f"  ok {p1.name}")
     print(f"  ok {p2.name}")
     print(f"  ok {p3.name}")
+
+    if (excel or markdown) and boot is None:
+        print("  [WARN] boot 结果缺失，跳过 Excel/Markdown 综合报告")
+        excel = markdown = False
+
+    common_args = dict(
+        nv_results=nv_results,
+        perf_results=metrics["perf"],
+        yearly_results=metrics["yearly"],
+        rc_results=metrics["risk_contrib"],
+        regime_results=metrics["regime"],
+        event_results=metrics["events"],
+        rolling_results=metrics["rolling"],
+        boot_results=boot,
+        weights_dict=weights,
+    )
+
+    if excel:
+        try:
+            from .excel_export import save_excel_report
+            p4 = save_excel_report(**common_args)
+            print(f"  ok {p4.name}（Excel 多 sheet 综合报告）")
+        except ImportError as e:
+            print(f"  [WARN] 跳过 Excel：{e}（请 pip install openpyxl）")
+    if markdown:
+        from .markdown_report import save_markdown_report
+        p5 = save_markdown_report(**common_args)
+        print(f"  ok {p5.name}（Markdown 综合报告）")
+
     print(f"  ok 输出目录: {p1.parent}")
     print(f"  ok 用时: {time.time()-t0:.2f}s")
 
 
-def run_full_pipeline():
-    """跑完整流程：6 步串联。"""
+def run_full_pipeline(excel: bool = True, markdown: bool = True):
+    """跑完整流程：6 步串联。
+
+    excel/markdown 控制是否在 step6 写综合报告（默认全开）。
+    """
     overall = time.time()
     print("\n" + "=" * 60)
     print("  桥水全天候策略 · 中国版回测")
@@ -134,7 +171,8 @@ def run_full_pipeline():
     metrics = step_3_compute_metrics(nv_results, weights, rets)
     boot = step_4_bootstrap(weights, rets)
     step_5_print_reports(metrics, boot, weights)
-    step_6_save_outputs(nv_results, metrics, weights)
+    step_6_save_outputs(nv_results, metrics, weights, boot=boot,
+                         excel=excel, markdown=markdown)
 
     print("\n" + "=" * 60)
     print(f"  完成！总耗时 {time.time()-overall:.1f}s")
