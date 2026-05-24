@@ -1,8 +1,9 @@
 """桥水全天候策略 · 中国版回测 - 主入口。
 
 用法：
-    python main.py            跑完整回测流程
+    python main.py            跑完整回测流程（默认输出 CSV/JSON/Excel/Markdown）
     python main.py --fetch    （可选）先拉取数据再回测
+    python main.py --no-excel 跳过 Excel 综合报告
     python main.py --help     查看所有命令
 """
 import sys
@@ -21,6 +22,8 @@ def main():
   python main.py --fetch       先拉数据再回测
   python main.py --fetch-only  只拉数据不回测
   python main.py --force-fetch 重新拉取所有数据（覆盖已有 CSV）
+  python main.py --no-excel    跳过 Excel 综合报告
+  python main.py --no-markdown 跳过 Markdown 综合报告
 """,
     )
     parser.add_argument("--fetch", action="store_true",
@@ -33,6 +36,10 @@ def main():
                         help="拉取数据起始日期，如 20180101（默认 20150101）")
     parser.add_argument("--end", default=None, metavar="YYYYMMDD",
                         help="拉取数据结束日期，如 20251231（默认 20251231）")
+    parser.add_argument("--no-excel", action="store_true",
+                        help="跳过 Excel 综合报告（默认会生成）")
+    parser.add_argument("--no-markdown", action="store_true",
+                        help="跳过 Markdown 综合报告（默认会生成）")
     args = parser.parse_args()
 
     # === 数据拉取 ===
@@ -57,7 +64,7 @@ def main():
         sys.exit(1)
 
     # === 跑回测 ===
-    run_full_pipeline()
+    run_full_pipeline(excel=not args.no_excel, markdown=not args.no_markdown)
 
 
 if __name__ == "__main__":
