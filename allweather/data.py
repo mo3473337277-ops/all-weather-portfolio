@@ -53,7 +53,7 @@ def stitch_series(etf: pd.Series, proxy: pd.Series,
 def _load_cgb_yields_spread() -> pd.Series:
     """从 cgb_yields.csv 读取 10Y-30Y 利差日序列。
 
-    优先使用位置索引（列7=10Y, 列8=30Y），避免中文编码依赖。
+    优先使用位置索引（列8=10Y, 列9=30Y），避免中文编码依赖。
     回退到 substring 匹配。
     """
     path = DATA_DIR / "cgb_yields.csv"
@@ -61,13 +61,13 @@ def _load_cgb_yields_spread() -> pd.Series:
         return pd.Series(dtype=float)
 
     df = pd.read_csv(path)
-    if df.empty or len(df.columns) < 9:
+    if df.empty or len(df.columns) < 10:
         return pd.Series(dtype=float)
 
     try:
         date_col = df.columns[0]
-        y10_col = df.columns[7]
-        y30_col = df.columns[8]
+        y10_col = df.columns[8]
+        y30_col = df.columns[9]
         spread = pd.to_numeric(df[y30_col], errors="coerce") - pd.to_numeric(df[y10_col], errors="coerce")
         dates = pd.to_datetime(df[date_col], errors="coerce")
         spread.index = dates
