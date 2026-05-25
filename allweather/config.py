@@ -44,12 +44,6 @@ ASSETS = [
     "gold", "nonferr", "soymeal",
 ]
 
-ASSETS_PLAN_A = [
-    "hs300", "div_idx", "us_sp500", "credit",
-    "bond_10y", "bond_30y", "short_bond",
-    "gold", "nonferr", "soymeal",
-]
-
 ETF_META = {
     "hs300":     {"code": "510300", "name": "沪深 300 ETF",        "bucket": "增长↑", "role": "A股大盘"},
     "div_idx":   {"code": "510880", "name": "红利 ETF（中证红利）",   "bucket": "增长↑", "role": "A股价值/股息"},
@@ -59,7 +53,6 @@ ETF_META = {
     "bond_30y":  {"code": "511130", "name": "30 年国债 ETF",       "bucket": "增长↓", "role": "长久期利率债"},
     "gold":      {"code": "518880", "name": "黄金 ETF",            "bucket": "通胀↑", "role": "实物黄金"},
     "nonferr":   {"code": "159980", "name": "有色金属 ETF",        "bucket": "通胀↑", "role": "工业金属"},
-    "short_bond": {"code": "511880", "name": "短久期债券 ETF",      "bucket": "增长↓", "role": "短久期利率债"},
     "soymeal":   {"code": "159985", "name": "豆粕 ETF",           "bucket": "通胀↑", "role": "农产品"},
 }
 
@@ -70,7 +63,7 @@ BUCKETS = {
     "增长↑权益(A股)":  ["hs300", "div_idx"],
     "增长↑权益(海外)": ["us_sp500"],
     "信用债":          ["credit"],
-    "增长↓利率债":    ["bond_10y", "bond_30y", "short_bond"],
+    "增长↓利率债":    ["bond_10y", "bond_30y"],
     "通胀↑黄金":      ["gold"],
     "通胀↑商品":      ["nonferr", "soymeal"],
 }
@@ -78,7 +71,7 @@ BUCKETS = {
 BUCKET_GROUPS = {
     "增长↑": ["hs300", "div_idx", "us_sp500"],
     "收益垫": ["credit"],
-    "增长↓": ["bond_10y", "bond_30y", "short_bond"],
+    "增长↓": ["bond_10y", "bond_30y"],
     "通胀↑": ["gold", "nonferr", "soymeal"],
 }
 
