@@ -30,8 +30,8 @@ TARGETS = {
     # 短债/货币
     "bond_short":   ("etf_nav", "511880"),
     # 缝合用替代数据
-    "nonferr_idx":  ("idx_em", "sw2_850400"),   # 申万有色金属指数
-    "soymeal_fut":  ("fut_dce", "M"),            # 豆粕期货主力连续
+    "nonferr_idx":  ("idx", "sh000823"),   # 中证有色金属指数
+    "soymeal_fut":  ("fut_dce", "M0"),     # 豆粕期货主力连续（DCE）
 }
 
 
