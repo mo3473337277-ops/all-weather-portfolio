@@ -267,6 +267,24 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <h2 class="plan-title plan-c">方案 1: V3c 多元型  ★★★ 强烈推荐</h2>
 <p class="para-bold">特征：固定权重月度再平衡 + nonferr 趋势过滤(60d)。海外权益 8%（国别分散），长债 55%，9 资产均衡。CAGR 7.76%、回撤 -4.68%、Sharpe 1.44。</p>
 <p class="para">适合：大多数投资者。各项指标全面领先，默认推荐方案。</p>
+<h3 class="sec-h3">⚙️ 权重设计逻辑（固定权重，不随市场变化）</h3>
+<p class="para"><strong>风险平价简化版：</strong>V3c 的固定权重源自风险平价原理（低波动资产高权重），简化为零售投资者可直接抄作业的固定数字。不设动态计算——每月只做再平衡拉回目标，不重新算权重。</p>
+<p class="para"><strong>资产配比：</strong>债券 55%（10Y 40% + 30Y 15%）、权益 18%（hs300 4% + 红利 6% + 标普500 8%）、商品 22%（黄金 10% + 有色 6% + 豆粕 6%）、信用债 5%。</p>
+<p class="para"><strong>调仓纪律：</strong>每月末再平衡回目标权重 + nonferr 趋势过滤（跌破 60d SMA → 清仓转投信用债）。</p>
+<table class="data-tbl" style="--header-color: #C0392B;">
+<thead><tr>
+<th>桶</th>
+<th>资产</th>
+<th>固定权重</th>
+<th>设计逻辑</th>
+</tr></thead>
+<tbody>
+<tr><td class="td-first">增长↑</td><td class="td-num">沪深300 / 红利 / 标普500</td><td class="td-num">4% + 6% + 8%</td><td class="td-num">国别分散，标普略高（汇率+成长溢价）</td></tr>
+<tr><td class="td-first">收益垫</td><td class="td-num">城投债</td><td class="td-num">5%</td><td class="td-num">信用利差收益，低配（与国债重叠）</td></tr>
+<tr><td class="td-first">增长↓10Y</td><td class="td-num">10年国债</td><td class="td-num">40%</td><td class="td-num">核心压舱石，低波动高配（久期~8年）</td></tr>
+<tr><td class="td-first">增长↓30Y</td><td class="td-num">30年国债</td><td class="td-num">15%</td><td class="td-num">长端补充，高波动控制（久期~18年）</td></tr>
+<tr><td class="td-first">通胀↑</td><td class="td-num">黄金 / 有色 / 豆粕</td><td class="td-num">10% + 6% + 6%</td><td class="td-num">黄金核心通胀对冲，有色+豆粕补充</td></tr>
+</tbody></table>
 <h3 class="sec-h3">📊 持仓清单（按 100 万本金）</h3>
 <table class="data-tbl" style="--header-color: #C0392B;">
 <thead><tr>
