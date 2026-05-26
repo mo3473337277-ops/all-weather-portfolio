@@ -52,9 +52,9 @@ allweather/
 
 ### 3 strategies (2026-05-26)
 
-- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Semi-annual + 3% threshold dual-trigger rebalancing. "实战派" — best 11-year backtest, simple to execute.
-- **V3-B 风险平价(60d)** ★★★: Hierarchical RP monthly rebalance, 60-day lookback. "学院派（战术）" — responsive.
-- **V3-B 保守增强(60d)** ★★★: risk_parity bucket + nonferr trend filter 90d SMA. "保守派" — lowest MDD (-3.52%), highest Sharpe (1.80).
+- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Semi-annual + 3% threshold dual-trigger rebalancing. "实战派" — best CAGR (7.45%), simple to execute.
+- **V3-B 风险平价(20d)** ★★★: Hierarchical RP monthly rebalance, 20d lookback + nonferr trend filter 75d. "学院派" — best cumulative return (120.5%), MDD -4.89%.
+- **V3-B 保守增强(60d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (1.98).
 
 ### Fixed-weight vs dynamic rebalancing
 

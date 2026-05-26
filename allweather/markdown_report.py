@@ -55,9 +55,9 @@ def _section_header():
 def _section_recommendation():
     items = sorted(PORTFOLIO_TAGS.items(), key=lambda kv: -len(kv[1]["stars"]))
     notes = {
-        "V3c 多元": "实战派 — 固定权重+阈值再平衡，11年回测最优（Sharpe 1.26）",
-        "V3-B 风险平价(60d)": "学院派 — 分层风险平价，月度调仓",
-        "V3-B 保守增强(60d)": "保守增强 — risk_parity桶+nonferr趋势过滤，回撤最浅（-3.52%）",
+        "V3c 多元": "实战派 — 固定权重+阈值再平衡，11年 CAGR 最高（7.45%）",
+        "V3-B 风险平价(60d)": "学院派 — 分层风险平价 + nonferr 趋势过滤，累计收益最高（120.5%）",
+        "V3-B 保守增强(60d)": "保守增强 — 逆波动率+nonferr趋势过滤，Sharpe 最高（1.98）",
     }
     rows = [(tag["stars"], port, tag["label"], notes.get(port, ""))
             for port, tag in items]
@@ -66,7 +66,7 @@ def _section_recommendation():
         "",
         _md_table(["推荐度", "方案", "标签", "说明"], rows),
         "",
-        "> **V3c** 和 **V3-B** 是两条不同路线的 ★★★ 推荐：前者是实战答案（指标最优），后者是方法论正统（桥水真经）。选哪个取决于你更信回测还是更信哲学。",
+        "> **V3c** 和 **V3-B** 是两条不同路线的 ★★★ 推荐：V3c 是实战答案（CAGR 最高、落地最简单），V3-B 是方法论正统（动态权重），保守增强是低波动首选（Sharpe 最高、回撤最浅）。",
         "",
     ]
 

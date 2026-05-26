@@ -1,4 +1,4 @@
-"""V3b / V3c / V3d / V3-A 权重方案。"""
+"""V3c 权重方案。"""
 import pandas as pd
 from .config import ASSETS
 
@@ -12,8 +12,8 @@ WEIGHTS = {
 
 PORTFOLIO_TAGS = {
     "V3c 多元":            {"stars": "★★★", "label": "实战派 — 固定权重，11年回测最优"},
-    "V3-B 风险平价(60d)":  {"stars": "★★★", "label": "学院派 — 分层风险平价，月度调仓（战术）"},
-    "V3-B 保守增强(60d)":  {"stars": "★★★", "label": "保守增强 — risk_parity桶 + nonferr趋势过滤，Sharpe最优"},
+    "V3-B 风险平价(60d)":  {"stars": "★★★", "label": "学院派 — 分层风险平价 + nonferr 趋势过滤，月度调仓"},
+    "V3-B 保守增强(60d)":  {"stars": "★★★", "label": "保守增强 — 逆波动率 + nonferr 趋势过滤，Sharpe 最优"},
 }
 
 
