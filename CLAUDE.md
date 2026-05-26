@@ -53,8 +53,8 @@ allweather/
 ### 3 strategies (2026-05-26)
 
 - **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Monthly rebalancing + nonferr trend filter 60d. "实战派" — simple to execute, CAGR 7.76%, MDD -4.68%.
-- **V3-B 风险平价(20d)** ★★★: 5-bucket hierarchical RP (10Y/30Y split) monthly rebalance, 20d lookback + nonferr trend filter 75d. "学院派" — best CAGR (8.13%), best cumulative return (129.8%), MDD -4.14%, Sharpe 1.69.
-- **V3-B 保守增强(20d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (1.98).
+- **V3-B 风险平价(20d)** ★★★: 5-bucket hierarchical RP (10Y/30Y split) monthly rebalance, 20d lookback + nonferr trend filter 75d + gold dip-buying (15% DD threshold, 2.0x boost). "学院派" — best CAGR (8.47%), best cumulative return, MDD -4.14%, Sharpe 1.73.
+- **V3-B 保守增强(20d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA + gold dip-buying, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (1.99).
 
 ### Fixed-weight vs dynamic rebalancing
 
@@ -106,6 +106,8 @@ Defined in `config.py::BUCKET_GROUPS`. 10Y/30Y split is the key improvement over
 | `RISK_PARITY_MAX_WEIGHT` | 0.25 | Single asset cap in V3-B |
 | `RISK_PARITY_MIN_WEIGHT` | 0.02 | Single asset floor in V3-B |
 | `BOND_30Y_AMP` | 3.0 | Fallback duration multiplier |
+| `GOLD_DIP_THRESHOLD` | 0.15 | Gold dip-buy trigger (15% DD from peak) |
+| `GOLD_DIP_BOOST` | 2.0 | Gold weight boost multiplier when triggered |
 | `BOOTSTRAP_N_SIM` | 1000 | Monte Carlo iterations |
 | `BOOTSTRAP_HORIZON_DAYS` | 1260 | 5-year horizon |
 | `BOOTSTRAP_BLOCK_DAYS` | 21 | ~1 month blocks |

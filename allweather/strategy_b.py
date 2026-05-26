@@ -4,6 +4,7 @@ import pandas as pd
 from .config import (
     RISK_FREE_RATE, RISK_PARITY_WINDOW,
     RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT, BUCKET_GROUPS,
+    GOLD_DIP_THRESHOLD, GOLD_DIP_BOOST,
 )
 from .risk import hierarchical_rp_weights, inverse_vol_weights
 
@@ -35,14 +36,18 @@ def backtest_b(
     nonferr_dd_threshold: float = -0.10,
     nonferr_trend_window: int = 90,
     weighting_method: str = "hierarchical_rp",
+    gold_dip_threshold: float | None = GOLD_DIP_THRESHOLD,
+    gold_dip_boost: float = GOLD_DIP_BOOST,
 ) -> tuple:
-    """Plan B backtest — 分层风险平价 / 逆波动率 + 可选 nonferr 风控。
+    """Plan B backtest — 分层风险平价 / 逆波动率 + 可选 nonferr 风控 + gold 抄底。
 
     Args:
         weighting_method: "hierarchical_rp" (default) or "inverse_vol"
         nonferr_control: None, "dd_stop" (回撤刹车), or "trend_filter" (趋势过滤)
         nonferr_dd_threshold: dd_stop 模式的回撤触发阈值
         nonferr_trend_window: trend_filter 模式的 SMA 窗口（交易日）
+        gold_dip_threshold: 黄金回撤阈值（None=禁用抄底）
+        gold_dip_boost: 触发后黄金权重增幅倍数（1.5=增加50%）
 
     Returns:
         nv (pd.Series), n_rebal (int)
@@ -70,6 +75,13 @@ def backtest_b(
         prices = (1 + rets_rp).cumprod()
         nferr_peak = prices.iloc[0]["nonferr"]
 
+    # --- Gold dip-buying state ---
+    gold_peak = 1.0
+    if gold_dip_threshold is not None and "gold" in cols:
+        if prices is None:
+            prices = (1 + rets_rp).cumprod()
+        gold_peak = prices.iloc[0]["gold"]
+
     for i, d in enumerate(rets.index):
         if i == 0:
             nv.loc[d] = 1.0
@@ -89,6 +101,12 @@ def backtest_b(
             if curr_nf > nferr_peak:
                 nferr_peak = curr_nf
                 nferr_stopped = False
+
+        # --- Update gold peak ---
+        if gold_dip_threshold is not None and prices is not None:
+            curr_au = prices.iloc[i]["gold"]
+            if curr_au > gold_peak:
+                gold_peak = curr_au
 
         # Monthly rebalance
         if d.month != rets.index[i - 1].month and i > rp_window:
@@ -114,6 +132,16 @@ def backtest_b(
                 if curr_nf < nf_sma and w.get("nonferr", 0) > 0:
                     w["credit"] = w.get("credit", 0) + w["nonferr"]
                     w["nonferr"] = 0.0
+
+            # --- Gold dip-buying: 回撤超阈值 → 翻倍增持，从 credit 提取 ---
+            if gold_dip_threshold is not None and prices is not None and w.get("gold", 0) > 0:
+                gold_dd = prices.iloc[i]["gold"] / gold_peak - 1
+                if gold_dd <= -gold_dip_threshold:
+                    orig_gold = w["gold"]
+                    boost = orig_gold * gold_dip_boost
+                    if w.get("credit", 0) >= boost:
+                        w["gold"] = orig_gold + boost
+                        w["credit"] = w["credit"] - boost
 
             h = w
             n_rebal += 1

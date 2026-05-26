@@ -109,3 +109,7 @@ COST_PER_SIDE = 0.0015
 RISK_PARITY_WINDOW = 20           # V3-B 波动率窗口（交易日）
 RISK_PARITY_MAX_WEIGHT = 0.25    # 单资产权重上限
 RISK_PARITY_MIN_WEIGHT = 0.02    # 单资产权重下限
+
+# === Gold 抄底参数 ===
+GOLD_DIP_THRESHOLD = 0.15        # 黄金从高点回撤超过此阈值触发抄底
+GOLD_DIP_BOOST = 2.0             # 触发后黄金权重翻倍倍数（2.0 = 翻倍）
