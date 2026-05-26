@@ -57,7 +57,7 @@ def step_2_run_backtests(rets):
         nv, n = backtest_b(rets, cash_ratio=c, rp_window=20,
                             nonferr_control="trend_filter",
                             nonferr_trend_window=75)
-        nv_results[("V3-B 风险平价(60d)", tier_label)] = nv
+        nv_results[("V3-B 风险平价(20d)", tier_label)] = nv
         n_rebal_total += n
 
     # --- 方案 B 增强: 逆波动率 + nonferr 趋势过滤 ---
@@ -67,7 +67,7 @@ def step_2_run_backtests(rets):
                             nonferr_control="trend_filter",
                             nonferr_trend_window=75,
                             weighting_method="inverse_vol")
-        nv_results[("V3-B 保守增强(60d)", tier_label)] = nv
+        nv_results[("V3-B 保守增强(20d)", tier_label)] = nv
         n_rebal_total += n
 
     total = len(nv_results)
