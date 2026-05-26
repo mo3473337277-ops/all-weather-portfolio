@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git commit rules
+
+- Commit message 中禁止包含任何 Co-Authored-By 署名（包括但不限于 Claude、Anthropic、noreply@anthropic.com 等任何 AI 相关署名）
+- 所有提交仅保留用户本人的 git author 信息
+- 创建 PR 时同样不添加任何 AI 合作者信息
+
 ## Project identity
 
 Bridgewater All Weather portfolio localized to China A-share ETFs. Pure research/backtesting — not a library, not a web app. The goal: weight schemes that ordinary investors can copy-paste.
@@ -52,9 +58,9 @@ allweather/
 
 ### 3 strategies (2026-05-26)
 
-- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Monthly rebalancing + nonferr trend filter 60d. "实战派" — simple to execute, CAGR 7.76%, MDD -4.68%.
-- **V3-B 风险平价(20d)** ★★★: 5-bucket hierarchical RP (10Y/30Y split) monthly rebalance, 20d lookback + nonferr trend filter 75d + gold dip-buying (15% DD threshold, 2.0x boost) + hs300 dip-buying (35% DD threshold, 3.0x boost). "学院派" — best CAGR (9.62%), best cumulative return, MDD -4.14%, Sharpe 1.80.
-- **V3-B 保守增强(20d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA + gold/hs300 dip-buying, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (2.04).
+- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Monthly rebalancing + nonferr trend filter 60d. "实战派" — simple to execute, CAGR 6.64%, MDD -6.90%.
+- **V3-B 风险平价(20d)** ★★★: 5-bucket hierarchical RP (10Y/30Y split) monthly rebalance, 20d lookback + nonferr trend filter 75d + gold dip-buying (15% DD threshold, 2.0x boost) + hs300 dip-buying (35% DD threshold, 2.5x boost). "学院派" — best CAGR (8.48%), best cumulative return, MDD -8.19%, Sharpe 1.24.
+- **V3-B 保守增强(20d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA + gold/hs300 dip-buying, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.63%), highest Sharpe (1.52).
 
 ### Fixed-weight vs dynamic rebalancing
 
@@ -70,7 +76,7 @@ Every strategy × 3 cash levels: 100% RP (0% cash), 85% RP (15% cash), 70% RP (3
 ### 30Y bond synthesis (`data.py::synthesize_bond_30y`)
 
 ETF 511130 launched 2024-03. Three-stage synthesis:
-1. 2015-01 ~ 2020-02: 10Y returns × 3.0 duration multiplier (deduct 0.3%/yr)
+1. 2008-01 ~ 2020-02: 10Y returns × 3.0 duration multiplier (deduct 0.3%/yr)
 2. 2020-02 ~ 2024-03: yield curve spread method (10Y-30Y spread × duration 18.0)
 3. 2024-03 ~ now: real ETF NAV
 
@@ -98,18 +104,18 @@ Defined in `config.py::BUCKET_GROUPS`. 10Y/30Y split is the key improvement over
 
 | Constant | Value | Purpose |
 |---|---|---|
-| `BACKTEST_START/END` | 2015-01-01 / 2025-12-31 | ~11 year window |
+| `BACKTEST_START/END` | 2008-01-01 / 2025-12-31 | ~18 year window |
 | `REBAL_FREQ` | "ME" | Monthly rebalance (V3c) |
 | `REBAL_THRESHOLD` | 0.03 | 3% deviation trigger |
 | `RISK_FREE_ANNUAL` | 0.022 | Sharpe correction |
 | `RISK_PARITY_WINDOW` | 20 | V3-B 20d lookback (trading days) |
-| `RISK_PARITY_MAX_WEIGHT` | 0.25 | Single asset cap in V3-B |
+| `RISK_PARITY_MAX_WEIGHT` | 0.18 | Single asset cap in V3-B (grid-search optimal, prevents 10Y bond over-concentration) |
 | `RISK_PARITY_MIN_WEIGHT` | 0.02 | Single asset floor in V3-B |
 | `BOND_30Y_AMP` | 3.0 | Fallback duration multiplier |
 | `GOLD_DIP_THRESHOLD` | 0.15 | Gold dip-buy trigger (15% DD from peak) |
 | `GOLD_DIP_BOOST` | 2.0 | Gold weight boost multiplier when triggered |
 | `HS300_DIP_THRESHOLD` | 0.35 | hs300 dip-buy trigger (35% DD, catastrophic only) |
-| `HS300_DIP_BOOST` | 3.0 | hs300 weight boost multiplier when triggered (3x) |
+| `HS300_DIP_BOOST` | 2.5 | hs300 weight boost multiplier when triggered (2.5x, grid-search optimal) |
 | `BOOTSTRAP_N_SIM` | 1000 | Monte Carlo iterations |
 | `BOOTSTRAP_HORIZON_DAYS` | 1260 | 5-year horizon |
 | `BOOTSTRAP_BLOCK_DAYS` | 21 | ~1 month blocks |
