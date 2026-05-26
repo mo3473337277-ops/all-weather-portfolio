@@ -169,7 +169,7 @@ def print_summary_recommendation():
     for port, tag in PORTFOLIO_TAGS.items():
         print(f"  {tag['stars']:<5}  {port:<18}  {tag['label']}")
     print()
-    print("  注：默认推荐：V3c 多元（综合 Sharpe 最高、5 年蒙特卡洛下沿最厚实）")
+    print("  注：V3c 落地最简单；V3-B 累计收益最高（120.5%）；保守增强 Sharpe 最高（1.98）适合低波动偏好")
     print()
 
 

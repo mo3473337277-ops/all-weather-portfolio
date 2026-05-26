@@ -34,7 +34,7 @@ def step_1_load_data():
 
 
 def step_2_run_backtests(rets):
-    """Step 2: 原 V3b/V3c/V3d + 方案 A + 方案 B，× 三档现金。"""
+    """Step 2: V3c + V3-B × 三档现金 = 9 回测。"""
     print("\n" + "─" * 60)
     print("Step 2/6: 跑组合回测")
     print("─" * 60)
@@ -51,19 +51,22 @@ def step_2_run_backtests(rets):
             n_rebal_total += n
 
 
-    # --- 方案 B: 分层风险平价（60d）---
+    # --- 方案 B: 分层风险平价（20d）+ nonferr 趋势过滤 ---
     from .strategy_b import backtest_b
     for tier_label, c in CASH_TIERS:
-        nv, n = backtest_b(rets, cash_ratio=c, rp_window=60)
+        nv, n = backtest_b(rets, cash_ratio=c, rp_window=20,
+                            nonferr_control="trend_filter",
+                            nonferr_trend_window=75)
         nv_results[("V3-B 风险平价(60d)", tier_label)] = nv
         n_rebal_total += n
 
-    # --- 方案 B 增强: risk_parity 桶 + nonferr 趋势过滤 ---
+    # --- 方案 B 增强: 逆波动率 + nonferr 趋势过滤 ---
     for tier_label, c in CASH_TIERS:
-        nv, n = backtest_b(rets, cash_ratio=c, rp_window=60,
-                            bucket_method="risk_parity", max_w=0.30,
+        nv, n = backtest_b(rets, cash_ratio=c, rp_window=20,
+                            max_w=0.25,
                             nonferr_control="trend_filter",
-                            nonferr_trend_window=90)
+                            nonferr_trend_window=75,
+                            weighting_method="inverse_vol")
         nv_results[("V3-B 保守增强(60d)", tier_label)] = nv
         n_rebal_total += n
 
@@ -75,7 +78,7 @@ def step_2_run_backtests(rets):
 
 
 def step_3_compute_metrics(nv_results, weights, rets):
-    """Step 3: 计算所有衍生指标（含方案 A/B）。"""
+    """Step 3: 计算所有衍生指标。"""
     print("\n" + "─" * 60)
     print("Step 3/6: 计算衍生指标")
     print("─" * 60)
@@ -129,22 +132,22 @@ def step_4_bootstrap(weights, rets, nv_results=None):
         rets_for_p = rets[list(w.index)]
         boot[p] = block_bootstrap(w, rets_for_p)
 
-    # V3-B: 用最近窗口的分层风险平价权重作代理
-    from .risk import hierarchical_rp_weights
+    # V3-B: 用最近窗口权重作 Bootstrap 代理（分层RP或逆波动率）
+    from .risk import hierarchical_rp_weights, inverse_vol_weights
     from .config import BUCKET_GROUPS as BOOT_BG
     rp_buckets_boot = {k: list(v) for k, v in BOOT_BG.items()}
     for (portfolio, tier), _nv in (nv_results or {}).items():
         if "V3-B" in portfolio and tier == "100% RP":
             boot_rets = rets
             if "保守增强" in portfolio:
-                win, bucket_m, mw = 60, "risk_parity", 0.30
+                proxy_w = inverse_vol_weights(
+                    boot_rets.tail(20), window=20, max_w=0.25, min_w=RISK_PARITY_MIN_WEIGHT)
             else:
-                win, bucket_m, mw = RISK_PARITY_WINDOW, "equal", RISK_PARITY_MAX_WEIGHT
-            proxy_w = hierarchical_rp_weights(
-                boot_rets.tail(win), rp_buckets_boot, win,
-                mw, RISK_PARITY_MIN_WEIGHT,
-                bucket_method=bucket_m,
-            )
+                proxy_w = hierarchical_rp_weights(
+                    boot_rets.tail(20), rp_buckets_boot, 20,
+                    RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
+                    bucket_method="equal",
+                )
             rets_for_p = rets[list(proxy_w.index)]
             boot[portfolio] = block_bootstrap(proxy_w, rets_for_p)
 

@@ -1,17 +1,21 @@
-"""方案 B：分层风险平价（月度再平衡），可选 nonferr 风控增强。"""
+"""方案 B：分层风险平价 / 逆波动率（月度再平衡），可选 nonferr 风控增强。"""
 import numpy as np
 import pandas as pd
 from .config import (
     RISK_FREE_RATE, RISK_PARITY_WINDOW,
     RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT, BUCKET_GROUPS,
 )
-from .risk import hierarchical_rp_weights
+from .risk import hierarchical_rp_weights, inverse_vol_weights
+
 
 def _compute_weights(rets_rp, rp_buckets, window,
                      bucket_method="equal",
                      max_w=RISK_PARITY_MAX_WEIGHT,
-                     min_w=RISK_PARITY_MIN_WEIGHT):
-    """Compute full weight vector from hierarchical RP."""
+                     min_w=RISK_PARITY_MIN_WEIGHT,
+                     weighting_method="hierarchical_rp"):
+    """Compute full weight vector."""
+    if weighting_method == "inverse_vol":
+        return inverse_vol_weights(rets_rp, window=window, max_w=max_w, min_w=min_w)
     rp_w = hierarchical_rp_weights(
         rets_rp, rp_buckets, window,
         max_w, min_w,
@@ -30,10 +34,12 @@ def backtest_b(
     nonferr_control: str | None = None,
     nonferr_dd_threshold: float = -0.10,
     nonferr_trend_window: int = 90,
+    weighting_method: str = "hierarchical_rp",
 ) -> tuple:
-    """Plan B backtest — 分层风险平价 + 可选 nonferr 风控。
+    """Plan B backtest — 分层风险平价 / 逆波动率 + 可选 nonferr 风控。
 
     Args:
+        weighting_method: "hierarchical_rp" (default) or "inverse_vol"
         nonferr_control: None, "dd_stop" (回撤刹车), or "trend_filter" (趋势过滤)
         nonferr_dd_threshold: dd_stop 模式的回撤触发阈值
         nonferr_trend_window: trend_filter 模式的 SMA 窗口（交易日）
@@ -50,7 +56,8 @@ def backtest_b(
 
     initial_w = _compute_weights(
         rets_rp.iloc[:rp_window], rp_buckets, rp_window,
-        bucket_method=bucket_method, max_w=max_w, min_w=min_w)
+        bucket_method=bucket_method, max_w=max_w, min_w=min_w,
+        weighting_method=weighting_method)
     target = initial_w.values * (1 - cash_ratio)
     h = pd.Series(target, index=cols)
     v = 1.0
@@ -88,7 +95,8 @@ def backtest_b(
             window = rets_rp.iloc[max(0, i - rp_window):i]
             new_w = _compute_weights(window, rp_buckets, rp_window,
                                      bucket_method=bucket_method,
-                                     max_w=max_w, min_w=min_w)
+                                     max_w=max_w, min_w=min_w,
+                                     weighting_method=weighting_method)
             w = pd.Series(new_w.values * (1 - cash_ratio), index=cols)
 
             # --- Apply nonferr risk control ---
