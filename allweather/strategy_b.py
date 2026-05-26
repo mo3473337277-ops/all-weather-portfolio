@@ -6,11 +6,15 @@ from .config import (
 )
 from .risk import hierarchical_rp_weights
 
-def _compute_weights(rets_rp, rp_buckets, window):
+def _compute_weights(rets_rp, rp_buckets, window,
+                     bucket_method="equal",
+                     max_w=RISK_PARITY_MAX_WEIGHT,
+                     min_w=RISK_PARITY_MIN_WEIGHT):
     """Compute full weight vector from hierarchical RP."""
     rp_w = hierarchical_rp_weights(
         rets_rp, rp_buckets, window,
-        RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
+        max_w, min_w,
+        bucket_method=bucket_method,
     )
     return rp_w
 
@@ -19,6 +23,9 @@ def backtest_b(
     rets: pd.DataFrame,
     cash_ratio: float = 0.0,
     rp_window: int = RISK_PARITY_WINDOW,
+    bucket_method: str = "equal",
+    max_w: float = RISK_PARITY_MAX_WEIGHT,
+    min_w: float = RISK_PARITY_MIN_WEIGHT,
 ) -> tuple:
     """Plan B backtest — 纯分层风险平价，无波动率降仓/相关断路器/择时。
 
@@ -33,7 +40,8 @@ def backtest_b(
     n_rebal = 0
 
     initial_w = _compute_weights(
-        rets_rp.iloc[:rp_window], rp_buckets, rp_window)
+        rets_rp.iloc[:rp_window], rp_buckets, rp_window,
+        bucket_method=bucket_method, max_w=max_w, min_w=min_w)
     target = initial_w.values * (1 - cash_ratio)
     h = pd.Series(target, index=cols)
     v = 1.0
@@ -54,7 +62,9 @@ def backtest_b(
         # Monthly rebalance
         if d.month != rets.index[i - 1].month and i > rp_window:
             window = rets_rp.iloc[max(0, i - rp_window):i]
-            new_w = _compute_weights(window, rp_buckets, rp_window)
+            new_w = _compute_weights(window, rp_buckets, rp_window,
+                                     bucket_method=bucket_method,
+                                     max_w=max_w, min_w=min_w)
             target = new_w.values * (1 - cash_ratio)
             h = pd.Series(target, index=cols)
             n_rebal += 1
