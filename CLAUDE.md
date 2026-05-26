@@ -33,7 +33,7 @@ allweather/
   backtest.py               V3c engine: semi-annual + 3% threshold dual-trigger rebalancing + cash tiers
   risk.py                   Risk primitives: inverse vol weights, hierarchical RP (trend filter/drawdown
                             stop/vol target/corr breaker retained as library functions but unused in pipeline)
-  strategy_b.py             V3-B: hierarchical RP monthly rebalance, 60d window + nonferr trend filter variant
+  strategy_b.py             V3-B: 5-bucket hierarchical RP / inverse vol monthly rebalance + nonferr trend filter
   stats.py                  perf_metrics, yearly_returns, event_returns, regime_returns, block_bootstrap, etc.
   reports.py                Console output (9 tables) + JSON/CSV persistence
   excel_export.py           11-sheet formatted Excel report
@@ -44,7 +44,7 @@ allweather/
 ### The 6-step pipeline (`pipeline.py`)
 
 1. `step_1_load_data` — load 9-asset panel, compute daily returns
-2. `step_2_run_backtests` — V3c (fixed) + V3-B 60d + V3-B 保守增强(60d), each × 3 cash tiers = 9 backtests
+2. `step_2_run_backtests` — V3c (fixed) + V3-B 20d (5-bucket HRP) + V3-B 保守增强(20d) (IV), each × 3 cash tiers = 9 backtests
 3. `step_3_compute_metrics` — perf / yearly / risk contribution / regime / event / rolling stats
 4. `step_4_bootstrap` — 1000×5yr block bootstrap (21-day blocks). V3-B uses last-window proxy weights.
 5. `step_5_print_reports` — console output
@@ -52,14 +52,14 @@ allweather/
 
 ### 3 strategies (2026-05-26)
 
-- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Semi-annual + 3% threshold dual-trigger rebalancing. "实战派" — best CAGR (7.45%), simple to execute.
-- **V3-B 风险平价(20d)** ★★★: Hierarchical RP monthly rebalance, 20d lookback + nonferr trend filter 75d. "学院派" — best cumulative return (120.5%), MDD -4.89%.
-- **V3-B 保守增强(60d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (1.98).
+- **V3c 多元** ★★★: Fixed weights (defined in `portfolios.py::WEIGHTS`). Semi-annual + 3% threshold dual-trigger rebalancing. "实战派" — simple to execute, CAGR 7.45%.
+- **V3-B 风险平价(20d)** ★★★: 5-bucket hierarchical RP (10Y/30Y split) monthly rebalance, 20d lookback + nonferr trend filter 75d. "学院派" — best CAGR (8.13%), best cumulative return (129.8%), MDD -4.14%, Sharpe 1.69.
+- **V3-B 保守增强(20d)** ★★★: Inverse vol weighting (no bucket hierarchy) + nonferr trend filter 75d SMA, 20d window, max_w=0.25. "保守派" — lowest MDD (-3.57%), highest Sharpe (1.98).
 
 ### Fixed-weight vs dynamic rebalancing
 
 - **V3c**: `REBAL_FREQ="2QE"` (semi-annual) + `REBAL_THRESHOLD=0.03`, either trigger fires rebalance. Code: `backtest.py::backtest`.
-- **V3-B**: No fixed weights. Every month: 4 macro buckets equal-weighted (25% each), within-bucket inverse-vol weights. Code: `strategy_b.py::backtest_b`.
+- **V3-B**: No fixed weights. Every month: 5 macro buckets equal-weighted (20% each), within-bucket inverse-vol weights. 10Y/30Y bonds split into separate buckets. Code: `strategy_b.py::backtest_b`.
 
 ### Cash tiers
 
@@ -82,16 +82,17 @@ ETF 511130 launched 2024-03. Three-stage synthesis:
 
 Since V3-B has dynamic weights, bootstrap uses the last window's hierarchical RP weights as a fixed proxy (known limitation: all V3-B variants share bootstrap results).
 
-### 9 assets / 4 macro buckets
+### 9 assets / 5 macro buckets
 
 | Bucket | Assets |
 |--------|--------|
 | 增长↑ | hs300, div_idx, us_sp500 |
 | 收益垫 | credit |
-| 增长↓ | bond_10y, bond_30y |
+| 增长↓10Y | bond_10y |
+| 增长↓30Y | bond_30y |
 | 通胀↑ | gold, nonferr, soymeal |
 
-Defined in `config.py::BUCKET_GROUPS`.
+Defined in `config.py::BUCKET_GROUPS`. 10Y/30Y split is the key improvement over classic 4-bucket structure — the two bonds have vastly different duration (~8 vs ~18 years) and deserve independent risk allocation.
 
 ## Important constants (all in `config.py`)
 
@@ -101,7 +102,7 @@ Defined in `config.py::BUCKET_GROUPS`.
 | `REBAL_FREQ` | "2QE" | Semi-annual rebalance |
 | `REBAL_THRESHOLD` | 0.03 | 3% deviation trigger |
 | `RISK_FREE_ANNUAL` | 0.022 | Sharpe correction |
-| `RISK_PARITY_WINDOW` | 60 | V3-B 60d lookback (trading days) |
+| `RISK_PARITY_WINDOW` | 20 | V3-B 20d lookback (trading days) |
 | `RISK_PARITY_MAX_WEIGHT` | 0.25 | Single asset cap in V3-B |
 | `RISK_PARITY_MIN_WEIGHT` | 0.02 | Single asset floor in V3-B |
 | `BOND_30Y_AMP` | 3.0 | Fallback duration multiplier |

@@ -49,8 +49,8 @@ ETF_META = {
     "div_idx":   {"code": "510880", "name": "红利 ETF（中证红利）",   "bucket": "增长↑", "role": "A股价值/股息"},
     "us_sp500":  {"code": "513500", "name": "标普 500 ETF（QDII）", "bucket": "增长↑", "role": "海外权益"},
     "credit":    {"code": "511220", "name": "城投债 ETF",          "bucket": "收益垫", "role": "信用债"},
-    "bond_10y":  {"code": "511260", "name": "10 年国债 ETF",       "bucket": "增长↓", "role": "中久期利率债"},
-    "bond_30y":  {"code": "511130", "name": "30 年国债 ETF",       "bucket": "增长↓", "role": "长久期利率债"},
+    "bond_10y":  {"code": "511260", "name": "10 年国债 ETF",       "bucket": "增长↓10Y", "role": "中久期利率债"},
+    "bond_30y":  {"code": "511130", "name": "30 年国债 ETF",       "bucket": "增长↓30Y", "role": "长久期利率债"},
     "gold":      {"code": "518880", "name": "黄金 ETF",            "bucket": "通胀↑", "role": "实物黄金"},
     "nonferr":   {"code": "159980", "name": "有色金属 ETF",        "bucket": "通胀↑", "role": "工业金属"},
     "soymeal":   {"code": "159985", "name": "豆粕 ETF",           "bucket": "通胀↑", "role": "农产品"},
@@ -63,16 +63,18 @@ BUCKETS = {
     "增长↑权益(A股)":  ["hs300", "div_idx"],
     "增长↑权益(海外)": ["us_sp500"],
     "信用债":          ["credit"],
-    "增长↓利率债":    ["bond_10y", "bond_30y"],
+    "增长↓10Y":       ["bond_10y"],
+    "增长↓30Y":       ["bond_30y"],
     "通胀↑黄金":      ["gold"],
     "通胀↑商品":      ["nonferr", "soymeal"],
 }
 
 BUCKET_GROUPS = {
-    "增长↑": ["hs300", "div_idx", "us_sp500"],
-    "收益垫": ["credit"],
-    "增长↓": ["bond_10y", "bond_30y"],
-    "通胀↑": ["gold", "nonferr", "soymeal"],
+    "增长↑":   ["hs300", "div_idx", "us_sp500"],
+    "收益垫":  ["credit"],
+    "增长↓10Y": ["bond_10y"],
+    "增长↓30Y": ["bond_30y"],
+    "通胀↑":   ["gold", "nonferr", "soymeal"],
 }
 
 # === 关键事件压力测试 ===
@@ -104,7 +106,6 @@ TURNOVER_PER_REBAL = 0.08
 COST_PER_SIDE = 0.0015
 
 # === 方案 B 常量（分层风险平价）===
-RISK_PARITY_WINDOW = 60          # 逆波动率窗口（交易日），默认版本
-RISK_PARITY_WINDOW_LONG = 120    # 长窗口版本，更接近桥水战略定位
+RISK_PARITY_WINDOW = 20           # V3-B 波动率窗口（交易日）
 RISK_PARITY_MAX_WEIGHT = 0.25    # 单资产权重上限
 RISK_PARITY_MIN_WEIGHT = 0.02    # 单资产权重下限
