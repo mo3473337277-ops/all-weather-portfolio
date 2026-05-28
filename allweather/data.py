@@ -346,6 +346,18 @@ def load_panel() -> pd.DataFrame:
 
 
 
+def load_hs300_pe() -> pd.Series:
+    """加载沪深300 PE 时间序列（日频）。不存在返回空 Series。"""
+    path = DATA_DIR / "hs300_pe.csv"
+    if not path.exists():
+        return pd.Series(dtype=float)
+    df = pd.read_csv(path)
+    date_col = df.columns[0]
+    pe_col = df.columns[2]
+    df[date_col] = pd.to_datetime(df[date_col])
+    return df.set_index(date_col)[pe_col].sort_index()
+
+
 def get_returns() -> pd.DataFrame:
     """便捷函数：返回日收益率面板。"""
     return load_panel().pct_change().dropna()

@@ -124,6 +124,11 @@ def backtest_iv(
     track_weights: bool = False,
     vol_target: float | None = None,
     vol_target_window: int = 60,
+    hs300_value_dip: bool = False,
+    hs300_pe_entry: float = 20.0,
+    hs300_pe_exit: float = 50.0,
+    hs300_value_boost: float = 1.2,
+    hs300_value_sma: int = 60,
 ):
     """逆波动率加权 + 月度再平衡 + nonferr 趋势过滤 + gold/hs300 抄底。
 
@@ -132,6 +137,7 @@ def backtest_iv(
     track_weights=True 时额外返回权重历史 DataFrame（调仓日 × 资产）。
     """
     from .risk import inverse_vol_weights
+    from .data import load_hs300_pe
 
     if assets is not None:
         rets = rets[assets]
@@ -147,6 +153,9 @@ def backtest_iv(
 
     gold_peak = prices.iloc[0]["gold"] if gold_idx >= 0 else 1.0
     hs300_peak = prices.iloc[0]["hs300"] if hs300_idx >= 0 else 1.0
+
+    pe_data = load_hs300_pe() if hs300_value_dip else None
+    hs300_boosted = False
 
     w = inverse_vol_weights(rets.iloc[:max(iv_window, len(rets))], window=iv_window, max_w=max_w, min_w=min_w)
     target = w.values * (1 - cash_ratio)
@@ -211,6 +220,24 @@ def backtest_iv(
                     if w.get("credit", 0) >= boost:
                         w["hs300"] += boost
                         w["credit"] -= boost
+
+            if hs300_value_dip and pe_data is not None and hs300_idx >= 0 and w.get("hs300", 0) > 0 and i > hs300_value_sma:
+                pe_to_date = pe_data[pe_data.index <= d]
+                if len(pe_to_date) >= 252:
+                    curr_pe = pe_to_date.iloc[-1]
+                    pe_pct = (pe_to_date < curr_pe).sum() / len(pe_to_date) * 100
+                    curr_hs = prices.iloc[i]["hs300"]
+                    hs_sma = prices["hs300"].iloc[max(0, i - hs300_value_sma):i].mean()
+                    if hs300_boosted:
+                        if pe_pct > hs300_pe_exit:
+                            hs300_boosted = False
+                    elif pe_pct < hs300_pe_entry and curr_hs > hs_sma:
+                        hs300_boosted = True
+                    if hs300_boosted:
+                        boost = w["hs300"] * (hs300_value_boost - 1)
+                        if w.get("credit", 0) >= boost:
+                            w["hs300"] += boost
+                            w["credit"] -= boost
 
             if vol_target is not None and i > max(iv_window, vol_target_window):
                 past = rets.iloc[max(0, i - vol_target_window):i][cols]
