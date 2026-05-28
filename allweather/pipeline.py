@@ -61,6 +61,7 @@ def step_2_run_backtests(rets):
                             nonferr_trend_window=60, assets=V3C_ASSETS,
                             hs300_dip_threshold=None,
                             gold_dip_threshold=None,
+                            hs300_value_dip=True,
                             track_weights=track)
         if track:
             nv, n, wh = result
@@ -84,6 +85,7 @@ def step_2_run_backtests(rets):
                             gold_trend_window=75,
                             equity_trend_assets=["us_sp500"],
                             equity_trend_window=SP500_TREND_WINDOW,
+                            hs300_value_dip=True,
                             track_weights=track)
         if track:
             nv, n, wh = result
@@ -103,6 +105,7 @@ def step_2_run_backtests(rets):
                             weighting_method="inverse_vol",
                             hs300_dip_threshold=None,
                             gold_dip_threshold=None,
+                            hs300_value_dip=True,
                             track_weights=track)
         if track:
             nv, n, wh = result
