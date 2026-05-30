@@ -2,7 +2,7 @@
 
 
 [![Pages](https://img.shields.io/badge/docs-online-blue)](https://idealauror.github.io/all-weather-portfolio/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 
 基于真实 A 股 / 债 / 商品 ETF 数据的全天候风险平价（Risk Parity）回测工程。回测期 2005-2026，覆盖 ~21 年完整牛熊周期。
