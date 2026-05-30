@@ -59,7 +59,7 @@ def step_2_run_backtests(rets):
     signal_logs = {}
     n_rebal_total = 0
 
-    # --- V3c: 逆波动率加权（60d，6 资产精简）+ nonferr 趋势过滤 ---
+    # --- V3c: 逆波动率加权（60d，6 资产）+ nonferr 趋势过滤 ---
     for tier_label, c in CASH_TIERS:
         track = (tier_label == "100% RP")
         result = backtest_iv(rets, cash_ratio=c, iv_window=60, max_w=0.30, min_w=0.03,
@@ -124,7 +124,7 @@ def step_2_run_backtests(rets):
     nv_results[("V3-B 风险平价(20d)", "动态")] = nv
     n_rebal_total += n
 
-    # --- 方案 B 增强: 逆波动率 + nonferr 趋势过滤 ---
+    # --- 方案 B 增强: 逆波動率 + nonferr 趋势过滤 ---
     for tier_label, c in CASH_TIERS:
         track = (tier_label == "100% RP")
         result = backtest_b(rets[V3B_ASSETS], cash_ratio=c, rp_window=20,
