@@ -16,7 +16,6 @@
 
 三套策略基于同一资产宇宙，在**简单执行**、**长期回报**、**低回撤**三个方向各有侧重，风格不重叠。
 
-<img src="docs/charts/nav_drawdown_100%_RP_with_benchmark.png" width="100%" alt="净值与回撤曲线（含沪深300基准）">
 
 | 策略 | CAGR | 波动率 | 最大回撤 | Sharpe |
 |------|:----:|:------:|:--------:|:-----:|
@@ -45,7 +44,6 @@
 
 **适合**: 初入全天候、不想研究桶逻辑、追求简单透明。
 
-<img src="docs/charts/monthly_heatmap_V3c_多元.png" width="100%" alt="V3c 月度收益热力图">
 </details>
 
 <details>
@@ -55,7 +53,6 @@
 
 **适合**: 长期持有者(5 年+)、认同正统全天候理念、能承受短期波动。
 
-<img src="docs/charts/monthly_heatmap_V3-B_风险平价20d.png" width="100%" alt="V3-B RP 月度收益热力图">
 </details>
 
 <details>
@@ -65,7 +62,6 @@
 
 **适合**: 保守资金、退休金、无法忍受大幅回撤。
 
-<img src="docs/charts/monthly_heatmap_V3-B_保守增强20d.png" width="100%" alt="V3-B Con 月度收益热力图">
 </details>
 
 <details>
@@ -73,56 +69,8 @@
 
 每策略支持四档: 100% RP（满仓）、85% RP（15% 货币基金）、70% RP（30% 货币基金）、动态（根据 HS300 回撤自动调节）。现金档 Sharpe 基本不衰减，适合不同风险偏好的投资者。
 
-<img src="docs/charts/nav_all_tiers.png" width="100%" alt="各现金档位净值对比">
 </details>
 
----
-
-## 核心图表
-
-<details>
-<summary><b>年度收益对比</b></summary>
-<p>三策略历年收益柱状图。V3-B RP 在牛年弹性最高（2009 +30%，2014 +26%），保守增强在熊年最稳（2013 -1.95%，V3c 同期 -3.63%）。</p>
-<img src="docs/charts/yearly_bar.png" width="100%" alt="年度收益对比">
-</details>
-
-<details>
-<summary><b>滚动 1 年收益</b></summary>
-<p>滚动 1 年年化收益曲线。观察策略在不同市场环境下的持续表现。滚动窗口可识别出策略的"不适期"——2013 年三策略均有阶段性承压。</p>
-<img src="docs/charts/rolling_returns.png" width="100%" alt="滚动 1 年收益">
-</details>
-
-<details>
-<summary><b>月度收益对比</b></summary>
-<p>三策略月度收益分布对比（箱形/散点）。V3-B RP 月度波动范围最宽（±5%），保守增强最集中（±2%）。</p>
-<img src="docs/charts/monthly_returns_comparison.png" width="100%" alt="月度收益对比">
-</details>
-
-<details>
-<summary><b>宏观四象限表现</b></summary>
-<p>全天候策略的核心逻辑——在四个宏观象限（增长↑/↓ × 通胀↑/↓）中都有资产贡献正收益。V3-B RP 在"股牛+债熊"象限表现最强（+8.64%/季），保守增强在"股熊+债牛"防守最稳。</p>
-<img src="docs/charts/regime_quadrant.png" width="100%" alt="宏观四象限情景收益">
-</details>
-
-<details>
-<summary><b>关键事件压力测试</b></summary>
-<p>14 个历史极端事件（2015 股灾、2016 熔断、2018 大熊市、2022 股债双杀、2024 雪球危机、2025 关税等）。全天候策略在所有事件中均未出现超过 -5% 的跌幅，大部分事件实现正收益。</p>
-<img src="docs/charts/event_bar.png" width="100%" alt="事件期收益对比">
-</details>
-
-<details>
-<summary><b>Bootstrap 稳健性检验</b></summary>
-<p>1000 次 Block Bootstrap（块长 21 天 × 5 年 horizon）模拟的累计收益分布。三策略中位数收益均显著高于沪深 300 基准，亏损概率 < 5%。</p>
-<img src="docs/charts/bootstrap_distribution.png" width="100%" alt="Bootstrap 分布">
-</details>
-
-<details>
-<summary><b>权重演化</b></summary>
-<p>以 V3c 为例展示权重随市场调整的时序变化。趋势过滤和抄底机制在不同市场阶段自动调节资产暴露。</p>
-<img src="docs/charts/weights_V3c_多元.png" width="100%" alt="V3c 权重演化">
-</details>
-
----
 
 ## 资产宇宙
 
@@ -196,7 +144,7 @@ python -m allweather.rebalance --signals     # 只看当前市场信号状态
 | `output/nv_curves.csv` | 全部回测净值曲线宽表 |
 | `output/weight_history_*.csv` | 三策略权重历史 |
 | `output/signal_log.csv` | 风控信号触发日志 |
-| `docs/charts/*.png` | 15 张分析图表 |
+| `docs/charts/*.png` | 分析图表 |
 | `docs/data.json` | 结构化指标（前端展示用） |
 </details>
 
