@@ -86,8 +86,8 @@ def _load_cgb_yields_spread() -> pd.Series:
         spread.index = dates
         spread = spread.dropna().sort_index()
         return spread / 100.0
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [WARN] 收益率曲线列索引解析失败，尝试 substring 回退: {e}")
 
     # 回退：substring 匹配
     date_col = df.columns[0]
@@ -227,8 +227,8 @@ def _load_gold_cny() -> pd.Series:
                 mg_daily = mg_daily[mg_daily.index < gold_cny.index.min()]
                 if len(mg_daily) > 0:
                     gold_cny = pd.concat([mg_daily, gold_cny]).sort_index()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [WARN] 宏观黄金数据合并失败，仅用 ETF 数据: {e}")
 
     if etf.empty:
         return gold_cny

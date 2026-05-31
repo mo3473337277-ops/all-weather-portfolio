@@ -59,8 +59,6 @@ def backtest_b(
     track_signals: bool = False,
     signal_label: str = "",
     dynamic_cash: bool = False,
-    post_process_max_w: float | None = None,
-    target_weight_smoothing: float | None = None,
 ) -> tuple:
     """Plan B backtest — 分层风险平价 / 逆波动率 + 可选 nonferr 风控 + gold 抄底 + hs300 抄底。
 
@@ -251,28 +249,6 @@ def backtest_b(
                     snap = hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, hs300_dip_boost)
                     entry.update(snap)
                 signal_log.append(entry)
-
-            # --- Post-processing: re-enforce max_w after all override operations ---
-            if post_process_max_w is not None:
-                total_excess = 0.0
-                for asset in list(w.index):
-                    if w[asset] > post_process_max_w:
-                        total_excess += w[asset] - post_process_max_w
-                        w[asset] = post_process_max_w
-                if total_excess > 1e-10:
-                    under = [a for a in w.index if w[a] < post_process_max_w]
-                    under_total = sum(w[a] for a in under)
-                    if under_total > 0:
-                        for a in under:
-                            w[a] += total_excess * (w[a] / under_total)
-
-            # --- Target weight smoothing: EMA blend with prior portfolio ---
-            if target_weight_smoothing is not None and target_weight_smoothing < 1.0:
-                h_prev = h.copy()
-                w_u = w / w.sum()
-                hp_u = h_prev / h_prev.sum()
-                w_u = target_weight_smoothing * w_u + (1 - target_weight_smoothing) * hp_u
-                w = pd.Series(w_u.values * (1 - eff_cash), index=cols) if w.sum() > 0 else w
 
             eff_cash = 1.0 - w.sum()
 

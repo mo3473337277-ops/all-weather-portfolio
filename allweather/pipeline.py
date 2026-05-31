@@ -9,7 +9,7 @@ from .data import load_panel
 from .backtest import backtest_iv
 from .stats import (
     perf_metrics, yearly_returns, event_returns,
-    bucket_risk_contribution, regime_returns, rolling_stats,
+    regime_returns, rolling_stats,
     block_bootstrap, d_significance,
     weight_stability, risk_contribution_time_varying,
 )
@@ -34,7 +34,7 @@ from .update_docs import save_docs_json, patch_index_html
 
 
 def step_1_load_data():
-    """Step 1: 加载历史数据（9 资产）。"""
+    """Step 1: 加载历史数据（8 活跃资产 + wti 备选）。"""
     print("\n" + "─" * 60)
     print("Step 1/6: 加载历史数据")
     print("─" * 60)
@@ -48,12 +48,11 @@ def step_1_load_data():
 
 
 def step_2_run_backtests(rets):
-    """Step 2: V3c + V3-B × 三档现金 = 9 回测。"""
+    """Step 2: 3 策略 × 3 现金档 = 9 回测（+3 动态现金 = 12）。"""
     print("\n" + "─" * 60)
     print("Step 2/6: 跑组合回测")
     print("─" * 60)
     t0 = time.time()
-    weights = {}
     nv_results = {}
     weight_history = {}
     signal_logs = {}
@@ -124,45 +123,6 @@ def step_2_run_backtests(rets):
     nv_results[("V3-B 风险平价(20d)", "动态")] = nv
     n_rebal_total += n
 
-    # --- 方案 B 风险平价桶: 分层风险平价（20d, 4桶 risk_parity 桶间）+ same风控 ---
-    for tier_label, c in CASH_TIERS:
-        track = (tier_label == "100% RP")
-        result = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=c, rp_window=20,
-                            rp_buckets=V3B_RP_BUCKETS,
-                            bucket_method="risk_parity",
-                            nonferr_control="trend_filter",
-                            nonferr_trend_window=75,
-                            gold_trend_filter=True,
-                            gold_trend_window=75,
-                            equity_trend_assets=["us_sp500"],
-                            equity_trend_window=SP500_TREND_WINDOW,
-                            hs300_value_dip=True,
-                            track_weights=track,
-                            track_signals=track,
-                            signal_label="V3-B 风险平价桶")
-        if track:
-            nv, n, wh, sl = result
-            weight_history["V3-B 风险平价桶(20d)"] = wh
-            signal_logs["V3-B 风险平价桶"] = sl
-        else:
-            nv, n = result
-        nv_results[("V3-B 风险平价桶(20d)", tier_label)] = nv
-        n_rebal_total += n
-
-    nv, n = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=0.0, rp_window=20,
-                        rp_buckets=V3B_RP_BUCKETS,
-                        bucket_method="risk_parity",
-                        nonferr_control="trend_filter",
-                        nonferr_trend_window=75,
-                        gold_trend_filter=True,
-                        gold_trend_window=75,
-                        equity_trend_assets=["us_sp500"],
-                        equity_trend_window=SP500_TREND_WINDOW,
-                        hs300_value_dip=True,
-                        dynamic_cash=True)
-    nv_results[("V3-B 风险平价桶(20d)", "动态")] = nv
-    n_rebal_total += n
-
     # --- 方案 B 增强: 逆波動率 + nonferr 趋势过滤 ---
     for tier_label, c in CASH_TIERS:
         track = (tier_label == "100% RP")
@@ -200,10 +160,10 @@ def step_2_run_backtests(rets):
     print(f"  ok 完成 {total} 个回测")
     print(f"  ok 总调仓次数: {n_rebal_total}")
     print(f"  ok 用时: {time.time()-t0:.2f}s")
-    return weights, nv_results, weight_history, signal_logs
+    return nv_results, weight_history, signal_logs
 
 
-def step_3_compute_metrics(nv_results, weights, rets, weight_history=None, signal_logs=None):
+def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=None):
     """Step 3: 计算所有衍生指标。"""
     print("\n" + "─" * 60)
     print("Step 3/6: 计算衍生指标")
@@ -218,17 +178,6 @@ def step_3_compute_metrics(nv_results, weights, rets, weight_history=None, signa
     rolling = {}
     ws = {}
     rc_tv = {}
-
-    for p in weights:
-        key = (p, "100% RP")
-        if key not in nv_results:
-            continue
-        rets_for_p = rets[list(weights[p].index)]
-        yearly[p] = yearly_returns(nv_results[key])
-        rc[p] = bucket_risk_contribution(weights[p], rets_for_p)
-        regime[p] = regime_returns(nv_results[key], rets)
-        events[p] = event_returns(nv_results[key], STRESS_EVENTS)
-        rolling[p] = rolling_stats(nv_results[key])
 
     # V3c / V3-B 无固定权重，跳过风险贡献分解
     for (p, tier), nv_s in nv_results.items():
@@ -258,10 +207,10 @@ def step_3_compute_metrics(nv_results, weights, rets, weight_history=None, signa
     }
 
 
-def step_4_bootstrap(weights, rets, nv_results=None):
+def step_4_bootstrap(rets, nv_results=None):
     """Step 4: Block Bootstrap 蒙特卡洛模拟。
 
-    固定权重策略直接用；V3-B 用最近窗口逆波动率权重作代理。
+    V3-B 用最近窗口逆波动率权重作动态权重代理。
     """
     print("\n" + "─" * 60)
     print("Step 4/6: Block Bootstrap 蒙特卡洛（1000 次 × 5 年）")
@@ -269,9 +218,6 @@ def step_4_bootstrap(weights, rets, nv_results=None):
     t0 = time.time()
 
     boot = {}
-    for p, w in weights.items():
-        rets_for_p = rets[list(w.index)]
-        boot[p] = block_bootstrap(w, rets_for_p)
 
     # V3c / V3-B: 用最近窗口权重作 Bootstrap 代理
     from .risk import hierarchical_rp_weights, inverse_vol_weights
@@ -308,7 +254,7 @@ def step_4_bootstrap(weights, rets, nv_results=None):
     return boot
 
 
-def step_5_print_reports(metrics, boot, weights, weight_history=None, signal_logs=None):
+def step_5_print_reports(metrics, boot, weight_history=None, signal_logs=None):
     """Step 5: 打印控制台报告。"""
     print("\n" + "─" * 60)
     print("Step 5/6: 输出报告")
@@ -337,12 +283,10 @@ def step_5_print_reports(metrics, boot, weights, weight_history=None, signal_log
     print()
     reports.print_bootstrap_table(boot)
     print()
-    reports.print_holdings(weights)
-    print()
     reports.print_summary_recommendation()
 
 
-def step_6_save_outputs(nv_results, metrics, weights, boot=None,
+def step_6_save_outputs(nv_results, metrics, boot=None,
                          excel: bool = True, markdown: bool = True,
                          weight_history: dict = None,
                          signal_logs: dict = None,
@@ -358,10 +302,8 @@ def step_6_save_outputs(nv_results, metrics, weights, boot=None,
     t0 = time.time()
     p1 = reports.save_nv_curves(nv_results)
     p2 = reports.save_summary_json(metrics["perf"])
-    p3 = reports.save_weights_csv(weights)
     print(f"  ok {p1.name}")
     print(f"  ok {p2.name}")
-    print(f"  ok {p3.name}")
 
     if signal_logs:
         all_logs = []
@@ -387,7 +329,7 @@ def step_6_save_outputs(nv_results, metrics, weights, boot=None,
         event_results=metrics["events"],
         rolling_results=metrics["rolling"],
         boot_results=boot,
-        weights_dict=weights,
+        weights_dict={},
         ws_results=metrics.get("weight_stability"),
         rc_tv_results=metrics.get("risk_contrib_tv"),
         signal_logs=signal_logs,
@@ -468,16 +410,16 @@ def run_full_pipeline(excel: bool = True, markdown: bool = True,
     print("=" * 60)
 
     panel, rets = step_1_load_data()
-    weights, nv_results, weight_history, signal_logs = step_2_run_backtests(rets)
-    metrics = step_3_compute_metrics(nv_results, weights, rets,
+    nv_results, weight_history, signal_logs = step_2_run_backtests(rets)
+    metrics = step_3_compute_metrics(nv_results, rets,
                                      weight_history=weight_history,
                                      signal_logs=signal_logs)
-    boot = step_4_bootstrap(weights, rets, nv_results=nv_results)
-    step_5_print_reports(metrics, boot, weights,
+    boot = step_4_bootstrap(rets, nv_results=nv_results)
+    step_5_print_reports(metrics, boot,
                          weight_history=weight_history,
                          signal_logs=signal_logs)
     hs300_nv = panel["hs300"] / panel["hs300"].iloc[0]
-    step_6_save_outputs(nv_results, metrics, weights, boot=boot,
+    step_6_save_outputs(nv_results, metrics, boot=boot,
                          excel=excel, markdown=markdown,
                          weight_history=weight_history,
                          signal_logs=signal_logs,

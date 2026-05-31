@@ -4,8 +4,7 @@ import json
 from pathlib import Path
 import pandas as pd
 from .config import (
-    BUCKET_GROUPS, ETF_META, CASH_TIERS, OUTPUT_DIR,
-    STRESS_EVENTS,
+    OUTPUT_DIR,
 )
 
 LINE = "=" * 100
@@ -269,27 +268,6 @@ def print_bootstrap_table(boot_results: dict):
               f"{_fmt_pct(b['loss_prob'], w=10)}")
 
 
-def print_holdings(weights_dict: dict, principal: float = 1_000_000):
-    print_header(f"【8】持仓清单（按 {principal:,.0f} 本金，100% RP 档）")
-    ports = list(weights_dict.keys())
-    print(f"  {'桶':<8}{'资产':<22}{'代码':<10}" +
-          "".join(f"{p:>14}" for p in ports))
-    for bk, lst in BUCKET_GROUPS.items():
-        for asset in lst:
-            meta = ETF_META[asset]
-            line = f"  {bk:<8}{meta['name']:<22}{meta['code']:<10}"
-            for p in ports:
-                w = weights_dict[p].get(asset, 0)
-                amt = w * principal
-                line += f"{amt:>13,.0f}"
-            print(line)
-    # 合计
-    line = f"  {'合计':<8}{'':<22}{'':<10}"
-    for p in ports:
-        line += f"{principal:>13,.0f}"
-    print(line)
-
-
 def print_summary_recommendation():
     print_header("【9】策略评估与推荐", char="*", width=100)
     print()
@@ -368,10 +346,3 @@ def save_summary_json(perf_results: dict, filename: str = "summary.json"):
                     encoding="utf-8")
     return path
 
-
-def save_weights_csv(weights_dict: dict, filename: str = "weights.csv"):
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    df = pd.DataFrame(weights_dict)
-    path = OUTPUT_DIR / filename
-    df.to_csv(path, encoding="utf-8-sig")
-    return path
