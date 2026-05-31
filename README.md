@@ -58,13 +58,31 @@
 
 ---
 
-## 架构与流水线
+## 项目目录
 
 ```
-加载 8 资产面板 → 3 策略 × 4 现金档回测 → 衍生指标 + D_excess → Block Bootstrap → 控制台报告 → 保存输出
+├── main.py                  # 入口：全量回测
+├── pyproject.toml
+├── allweather/              # 核心模块
+│   ├── config.py            常量（参数阈值、回测区间）
+│   ├── data.py              数据加载 + 30Y 国债三阶段合成
+│   ├── fetch.py             通过 akshare 拉取实时数据
+│   ├── backtest.py          V3c 引擎（逆波动率加权）
+│   ├── strategy_b.py        V3-B 引擎（分层风险平价 + 保守增强）
+│   ├── risk.py              逆波动率 / 风险平价 / 趋势过滤算法
+│   ├── stats.py             绩效指标 / Bootstrap / D_excess 尾部诊断
+│   ├── reports.py           控制台输出
+│   ├── charts.py            15 张分析图表生成
+│   ├── rebalance.py         实盘再平衡（信号仪表盘）
+│   └── pipeline.py          6 步流水线编排
+├── data/                    # 历史数据 CSV
+├── docs/                    # GitHub Pages 文档
+│   ├── index.html           交互式报告
+│   ├── data.json            结构化指标
+│   ├── strategy-paper.md    策略设计论文
+│   └── charts/              分析图表 PNG
+└── output/                  # 自动生成（回测报告/Excel/权重日志）
 ```
-
-CI 流水线 (`.github/workflows/backtest.yml`) 每次推送自动运行全量回测，检查 Sharpe / MDD 边界。
 
 ---
 
