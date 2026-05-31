@@ -124,6 +124,45 @@ def step_2_run_backtests(rets):
     nv_results[("V3-B 风险平价(20d)", "动态")] = nv
     n_rebal_total += n
 
+    # --- 方案 B 风险平价桶: 分层风险平价（20d, 4桶 risk_parity 桶间）+ same风控 ---
+    for tier_label, c in CASH_TIERS:
+        track = (tier_label == "100% RP")
+        result = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=c, rp_window=20,
+                            rp_buckets=V3B_RP_BUCKETS,
+                            bucket_method="risk_parity",
+                            nonferr_control="trend_filter",
+                            nonferr_trend_window=75,
+                            gold_trend_filter=True,
+                            gold_trend_window=75,
+                            equity_trend_assets=["us_sp500"],
+                            equity_trend_window=SP500_TREND_WINDOW,
+                            hs300_value_dip=True,
+                            track_weights=track,
+                            track_signals=track,
+                            signal_label="V3-B 风险平价桶")
+        if track:
+            nv, n, wh, sl = result
+            weight_history["V3-B 风险平价桶(20d)"] = wh
+            signal_logs["V3-B 风险平价桶"] = sl
+        else:
+            nv, n = result
+        nv_results[("V3-B 风险平价桶(20d)", tier_label)] = nv
+        n_rebal_total += n
+
+    nv, n = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=0.0, rp_window=20,
+                        rp_buckets=V3B_RP_BUCKETS,
+                        bucket_method="risk_parity",
+                        nonferr_control="trend_filter",
+                        nonferr_trend_window=75,
+                        gold_trend_filter=True,
+                        gold_trend_window=75,
+                        equity_trend_assets=["us_sp500"],
+                        equity_trend_window=SP500_TREND_WINDOW,
+                        hs300_value_dip=True,
+                        dynamic_cash=True)
+    nv_results[("V3-B 风险平价桶(20d)", "动态")] = nv
+    n_rebal_total += n
+
     # --- 方案 B 增强: 逆波動率 + nonferr 趋势过滤 ---
     for tier_label, c in CASH_TIERS:
         track = (tier_label == "100% RP")
@@ -243,6 +282,12 @@ def step_4_bootstrap(weights, rets, nv_results=None):
             if "保守增强" in portfolio:
                 proxy_w = inverse_vol_weights(
                     boot_rets[V3B_ASSETS].tail(20), window=20, max_w=0.25, min_w=RISK_PARITY_MIN_WEIGHT)
+            elif "风险平价桶" in portfolio:
+                proxy_w = hierarchical_rp_weights(
+                    boot_rets[V3B_RP_ASSETS].tail(20), rp_buckets_boot_rp, 20,
+                    RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
+                    bucket_method="risk_parity",
+                )
             elif "V3c" in portfolio:
                 proxy_w = inverse_vol_weights(
                     boot_rets[V3C_ASSETS].tail(60), window=60, max_w=0.30, min_w=0.03)
@@ -368,7 +413,6 @@ def step_6_save_outputs(nv_results, metrics, weights, boot=None,
             plot_yearly_returns, plot_weight_stack,
             plot_bootstrap_distribution,
             plot_yearly_bar,
-            plot_regime_quadrant,
         )
         for p, wh in weight_history.items():
             wh_path = OUTPUT_DIR / f"weight_history_{p.replace(' ', '_').replace('(', '').replace(')', '')}.csv"
@@ -384,8 +428,7 @@ def step_6_save_outputs(nv_results, metrics, weights, boot=None,
         plot_weight_stack(weight_history)
         plot_bootstrap_distribution(boot, perf_results=metrics["perf"])
         plot_yearly_bar(metrics, nv_results=nv_results)
-        plot_regime_quadrant(metrics)
-        print(f"  ok charts/（9 张图表）")
+        print(f"  ok charts/（8 张图表）")
 
     # --- 同步 docs/data.json + 图表到 docs/charts/ ---
     save_docs_json(

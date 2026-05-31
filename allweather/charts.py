@@ -2,6 +2,7 @@
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
@@ -86,7 +87,8 @@ def plot_nav_and_dd(nv_results: dict, tier: str = "100% RP",
 
     _draw_events([ax1, ax2], ax1)
 
-    fig.autofmt_xdate()
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax2.tick_params(axis="x", labelsize=9)
     suffix = "_with_benchmark" if benchmark_nv is not None else ""
     path = CHART_DIR / f"nav_drawdown_{tier.replace(' ', '_')}{suffix}.png"
     fig.savefig(path)
@@ -116,7 +118,9 @@ def plot_all_tiers_nv(nv_results: dict):
         ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.1f"))
         ax.grid(True, alpha=0.3)
 
-    fig.autofmt_xdate()
+    for ax in axes:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.tick_params(axis="x", labelsize=9)
     fig.suptitle("净值曲线 — 三档现金对比", fontsize=13, fontweight="bold", y=1.01)
     path = CHART_DIR / "nav_all_tiers.png"
     fig.savefig(path)
@@ -160,7 +164,8 @@ def plot_rolling_returns(metrics: dict):
 
     _draw_events([ax1, ax2], ax1, label_y=0.78)
 
-    fig.autofmt_xdate()
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax2.tick_params(axis="x", labelsize=9)
     path = CHART_DIR / "rolling_returns.png"
     fig.savefig(path)
     plt.close(fig)
@@ -223,7 +228,8 @@ def plot_monthly_returns_comparison(nv_results: dict):
 
     _draw_events([ax1], ax1)
 
-    fig.autofmt_xdate()
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax1.tick_params(axis="x", labelsize=9)
     path = CHART_DIR / "monthly_returns_comparison.png"
     fig.savefig(path)
     plt.close(fig)
@@ -379,7 +385,8 @@ def plot_weight_stack(weight_history: dict):
 
         _draw_events([ax1, ax2], ax1)
 
-        fig.autofmt_xdate()
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax2.tick_params(axis="x", labelsize=9)
         fname = port.replace(" ", "_").replace("(", "").replace(")", "")
         path = CHART_DIR / f"weights_{fname}.png"
         fig.savefig(path)
@@ -445,6 +452,7 @@ def plot_bootstrap_distribution(boot_results: dict, perf_results: dict = None):
 
     ax1.set_xlim(x_lim)
     ax1.set_ylabel("概率密度", fontsize=11)
+    ax1.set_xlabel("5年累计收益 (%)", fontsize=11)
     ax1.set_title("Bootstrap 5年累计收益分布（100%仓位, 1000次 Block重采样）",
                   fontsize=13, fontweight="bold")
     ax1.legend(loc="upper left", frameon=False, fontsize=9)
@@ -524,13 +532,10 @@ def plot_yearly_bar(metrics: dict, nv_results: dict = None):
         ax1.bar(x + i * width, vals, width, color=PORT_COLORS[p], alpha=0.8, label=p)
 
     ax1.axhline(0, color="black", lw=0.5)
-    ax1.set_xticks(x + width)
-    ax1.set_xticklabels([str(y) for y in all_years], fontsize=8, rotation=45)
     ax1.set_ylabel("年化收益 (%)", fontsize=11)
     ax1.set_title("分年化收益（100% RP）", fontsize=13, fontweight="bold")
     ax1.legend(loc="upper left", frameon=False, fontsize=8)
     ax1.grid(True, alpha=0.3, axis="y")
-    ax1.tick_params(labelsize=9)
 
     # ─── 下排：累计净值曲线 ───
     if nv_results:
@@ -545,63 +550,17 @@ def plot_yearly_bar(metrics: dict, nv_results: dict = None):
     ax2.set_ylabel("累计净值", fontsize=11)
     ax2.legend(loc="upper left", frameon=False, fontsize=8)
     ax2.grid(True, alpha=0.3)
-    ax2.tick_params(labelsize=9)
 
-    fig.autofmt_xdate()
+    # 各自子图独立控制 x 轴，不使用 autofmt_xdate（避免跨轴干扰）
+    ax1.set_xticks(x + width)
+    ax1.set_xticklabels([str(y) for y in all_years], fontsize=8)
+    ax1.tick_params(axis="x", labelsize=9, labelbottom=True)
+
+    ax2.xaxis.set_major_locator(mdates.YearLocator())
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax2.tick_params(axis="x", labelsize=9)
+
     path = CHART_DIR / "yearly_bar.png"
-    fig.savefig(path)
-    plt.close(fig)
-    return path
-
-
-# ═══════════════════════════════════════════════════════════
-# Priority 8: Macro regime quadrant chart
-# ═══════════════════════════════════════════════════════════
-
-def plot_regime_quadrant(metrics: dict):
-    """宏观情景四象限图 — 股牛/熊 × 债牛/熊，每个象限内三策略柱状对比。
-
-    metrics: {regime: {策略名: {情景: {"avg": 平均季度收益, "n": 季度数}}}}
-    """
-    _ensure_dir()
-    ports = ["V3c 多元", "V3-B 风险平价(20d)", "V3-B 保守增强(20d)"]
-    regime = metrics.get("regime", {})
-    if not regime or not any(p in regime for p in ports):
-        return
-
-    # 2×2 象限映射
-    positions = {
-        "股牛+债牛": (0, 0),
-        "股牛+债熊": (0, 1),
-        "股熊+债牛": (1, 0),
-        "股熊+债熊": (1, 1),
-    }
-
-    fig, axes = plt.subplots(2, 2, figsize=(13, 10))
-    fig.suptitle("宏观情景平均季度收益（100% RP）", fontsize=14, fontweight="bold", y=0.98)
-
-    for label, (ri, rj) in positions.items():
-        ax = axes[ri, rj]
-        first_p = next(p for p in ports if p in regime)
-        n_val = regime[first_p].get(label, {}).get("n", 0)
-
-        for i, p in enumerate(ports):
-            if p not in regime:
-                continue
-            avg = regime[p].get(label, {}).get("avg", 0) * 100
-            ax.bar(i, avg, width=0.55, color=PORT_COLORS[p], alpha=0.8,
-                   edgecolor="white", lw=0.3)
-
-        ax.set_title(f"{label}（n={n_val}）", fontsize=11, fontweight="bold")
-        ax.set_xticks(range(len(ports)))
-        ax.set_xticklabels(ports, fontsize=6.5, rotation=15)
-        ax.set_ylabel("平均季度收益 (%)", fontsize=9)
-        ax.axhline(0, color="black", lw=0.5)
-        ax.grid(True, alpha=0.3, axis="y")
-        ax.tick_params(labelsize=8)
-
-    fig.subplots_adjust(hspace=0.2, wspace=0.2)
-    path = CHART_DIR / "regime_quadrant.png"
     fig.savefig(path)
     plt.close(fig)
     return path
