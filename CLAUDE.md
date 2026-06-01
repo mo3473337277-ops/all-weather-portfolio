@@ -177,7 +177,6 @@ V3-B RP 去掉了 bond_10y：CAGR +1.43pp，Sharpe 仅 -0.02。
 | `HS300_DIP_BOOST` | 1.8 | HS300 抄底倍数 |
 | `HS300_PB_ENTRY` / `HS300_PE_EXIT` | 30 / 70 | AND 逻辑 入场PB / 出场PE 分位阈值 |
 | `SP500_TREND_WINDOW` | 120 | SP500 SMA 回看 |
-| `WTI_TREND_WINDOW` | 75 | 原油 SMA 回看（同 nonferr） |
 | `BOOTSTRAP_N_SIM` | 1000 | 蒙特卡洛次数 |
 | `BOOTSTRAP_HORIZON_DAYS` | 1260 | 5 年 |
 | `BOOTSTRAP_BLOCK_DAYS` | 21 | ~1 个月块 |

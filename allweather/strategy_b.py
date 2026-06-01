@@ -9,7 +9,7 @@ from .config import (
     HS300_DIP_SMA, HS300_DIP_EXIT_RECOVERY,
     HS300_PB_ENTRY, HS300_PE_EXIT,
 )
-from .risk import hierarchical_rp_weights, inverse_vol_weights, hs300_dip_check, hs300_signal_snapshot
+from .risk import hierarchical_rp_weights, inverse_vol_weights, hs300_dip_check, hs300_signal_snapshot, dynamic_cash_ratio
 from .data import load_hs300_pb, load_hs300_pe
 
 
@@ -152,15 +152,7 @@ def backtest_b(
                                      weighting_method=weighting_method)
             eff_cr = cash_ratio
             if dynamic_cash and prices is not None and "hs300" in prices.columns:
-                hs3 = prices["hs300"]
-                peak_3y = hs3.iloc[max(0, i-756):i+1].max()
-                dd_3y = hs3.iloc[i] / peak_3y - 1
-                if dd_3y <= -0.20:
-                    eff_cr = 0.0
-                elif dd_3y >= -0.05:
-                    eff_cr = 0.30
-                else:
-                    eff_cr = 0.15
+                eff_cr = dynamic_cash_ratio(prices["hs300"], i)
             w = pd.Series(new_w.values * (1 - eff_cr), index=cols)
 
             # --- Apply nonferr risk control ---

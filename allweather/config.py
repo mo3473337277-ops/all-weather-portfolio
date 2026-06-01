@@ -24,7 +24,6 @@ SAFETY_DEDUCT = {
 
 # === 调仓规则 ===
 REBAL_FREQ = "ME"            # 月度再平衡（V3c）
-REBAL_THRESHOLD = 0.03       # 3% 偏离阈值
 RISK_FREE_RATE = 0.022 / 252 # 货币基金年化 2.2%（日度）
 RISK_FREE_ANNUAL = 0.022         # 无风险利率年化，用于 Sharpe 修正
 
@@ -62,7 +61,7 @@ BUCKETS = {
     "增长↓10Y":       ["bond_10y"],
     "增长↓30Y":       ["bond_30y"],
     "通胀↑黄金":      ["gold"],
-    "通胀↑商品":      ["nonferr", "wti"],
+    "通胀↑商品":      ["nonferr"],
 }
 
 BUCKET_GROUPS = {
@@ -70,7 +69,7 @@ BUCKET_GROUPS = {
     "收益垫":  ["credit"],
     "增长↓10Y": ["bond_10y"],
     "增长↓30Y": ["bond_30y"],
-    "通胀↑":   ["gold", "nonferr", "wti"],
+    "通胀↑":   ["gold", "nonferr"],
 }
 
 # === 关键事件压力测试 ===
@@ -123,7 +122,6 @@ HS300_PE_EXIT = 70               # PE%ile 退出阈值（PE不再便宜才退出
 
 # === 标普500 趋势过滤 ===
 SP500_TREND_WINDOW = 120     # 标普500 SMA 回看窗口（交易日），跌破则清仓转入 credit
-WTI_TREND_WINDOW = 75        # 原油 SMA 回看窗口，同 nonferr（趋势性强，75d 敏感度最优）
 
 
 # === 策略标签 ===

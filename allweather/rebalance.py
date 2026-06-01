@@ -176,8 +176,8 @@ def apply_signal_overrides(strat_key, w, signals):
             w["credit"] += w["nonferr"]
             w["nonferr"] = 0.0
 
-    # gold trend filter (only V3-B RP and V3c)
-    if strat_key != "B-Con":
+    # gold trend filter (only V3-B RP)
+    if strat_key == "B-RP":
         if signals.get("gold_below_sma75", False) and "gold" in w.index and "credit" in w.index:
             if w["gold"] > 0:
                 w["credit"] += w["gold"]

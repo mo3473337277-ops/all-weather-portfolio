@@ -17,7 +17,7 @@ from .config import (
     CASH_TIERS, STRESS_EVENTS, OUTPUT_DIR,
     RISK_PARITY_WINDOW, RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
     V3C_ASSETS, BUCKETS, BUCKET_GROUPS,
-    SP500_TREND_WINDOW, GOLD_DIP_THRESHOLD,
+    SP500_TREND_WINDOW,
 )
 
 V3B_ASSETS = [a for assets in BUCKET_GROUPS.values() for a in assets]
@@ -63,7 +63,7 @@ def step_2_run_backtests(rets):
         track = (tier_label == "100% RP")
         result = backtest_iv(rets, cash_ratio=c, iv_window=60, max_w=0.30, min_w=0.03,
                             nonferr_trend_window=75, assets=V3C_ASSETS,
-                            gold_dip_threshold=GOLD_DIP_THRESHOLD, gold_dip_cap=0.20,
+                            gold_dip_threshold=None, gold_dip_cap=0.20,
                             hs300_value_dip=True,
                             track_weights=track,
                             track_signals=track,
@@ -79,7 +79,7 @@ def step_2_run_backtests(rets):
 
     nv, n = backtest_iv(rets, cash_ratio=0.0, iv_window=60, max_w=0.30, min_w=0.03,
                         nonferr_trend_window=75, assets=V3C_ASSETS,
-                        gold_dip_threshold=GOLD_DIP_THRESHOLD, gold_dip_cap=0.20,
+                        gold_dip_threshold=None, gold_dip_cap=0.20,
                         hs300_value_dip=True,
                         dynamic_cash=True)
     nv_results[("V3c 多元", "动态")] = nv
@@ -131,7 +131,7 @@ def step_2_run_backtests(rets):
                             nonferr_control="trend_filter",
                             nonferr_trend_window=75,
                             weighting_method="inverse_vol",
-                            gold_dip_threshold=GOLD_DIP_THRESHOLD, gold_dip_cap=0.20,
+                            gold_dip_threshold=None, gold_dip_cap=0.20,
                             hs300_value_dip=True,
                             track_weights=track,
                             track_signals=track,
@@ -150,7 +150,7 @@ def step_2_run_backtests(rets):
                         nonferr_control="trend_filter",
                         nonferr_trend_window=75,
                         weighting_method="inverse_vol",
-                        gold_dip_threshold=GOLD_DIP_THRESHOLD, gold_dip_cap=0.20,
+                        gold_dip_threshold=None, gold_dip_cap=0.20,
                         hs300_value_dip=True,
                         dynamic_cash=True)
     nv_results[("V3-B 保守增强(20d)", "动态")] = nv

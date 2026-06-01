@@ -93,6 +93,22 @@ def hs300_dip_check(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
 
 
 
+def dynamic_cash_ratio(hs300_series: pd.Series, i: int) -> float:
+    """基于 HS300 3 年回撤的动态现金比例。
+
+    回撤 >20% → 满仓(0% 现金)
+    回撤 <5%  → 保守(30% 现金)
+    中间区间  → 温和(15% 现金)
+    """
+    peak_3y = hs300_series.iloc[max(0, i - 756):i + 1].max()
+    dd_3y = hs300_series.iloc[i] / peak_3y - 1
+    if dd_3y <= -0.20:
+        return 0.0
+    elif dd_3y >= -0.05:
+        return 0.30
+    return 0.15
+
+
 def hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, boost_mult):
     sig_dd = round(float(prices.iloc[i]["hs300"] / hs300_peak - 1), 4)
     sig_pb_val, sig_pb_pct = None, None
