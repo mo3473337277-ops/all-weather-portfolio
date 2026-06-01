@@ -45,7 +45,7 @@ def _num(v, d=2):
 
 def save_docs_json(perf_results, yearly_results, event_results,
                    regime_results, rolling_results, boot_results,
-                   weight_history, signals=None, latest_prices=None):
+                   weight_history):
     """把 pipeline 指标写入 docs/data.json，供 index.html 的 JS 读取。"""
 
     data = {"generated_at": pd.Timestamp.now().isoformat(), "strategies": {}}
@@ -128,28 +128,6 @@ def save_docs_json(perf_results, yearly_results, event_results,
             str(k): round(float(v), 6) for k, v in last.items()
         }
 
-    # --- 当前信号状态 ---
-    if signals:
-        cleaned = {}
-        for k, v in signals.items():
-            if isinstance(v, (np.integer,)):
-                cleaned[k] = int(v)
-            elif isinstance(v, (np.floating,)):
-                cleaned[k] = float(v)
-            elif isinstance(v, (bool, np.bool_)):
-                cleaned[k] = bool(v)
-            elif v is None:
-                cleaned[k] = None
-            else:
-                cleaned[k] = v
-        data["signals"] = cleaned
-
-    # --- 最新价格 ---
-    if latest_prices is not None:
-        data["latest_prices"] = {
-            str(k): round(float(v), 6) for k, v in latest_prices.items()
-        }
-
     json_path = DOCS_DIR / "data.json"
     json_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2, cls=_NpEncoder),
@@ -163,10 +141,16 @@ def save_docs_json(perf_results, yearly_results, event_results,
 #  index.html 指标同步 — JS 自动渲染脚本
 # ============================================================
 
-def _generate_sync_script(S, extra=None):
+def _generate_sync_script(S):
     """生成 JS 代码：从 data.json 读取数据，更新 index.html 所有表格/卡片中的数值。
 
-    extra 可选字典，注入 signals / latest_prices / weights_snapshot 到 const D。
+    识别策略：
+      1. 带 data-tbl-key 属性的表格直接用 key 匹配
+      2. 无 key 的表格通过 <thead> 文本内容匹配
+      3. 卡片区域通过包含文本 + DOM 层级定位
+    更新策略：
+      - 表格: 找到表头列顺序，按行名+列名定位单元格
+      - 卡片: 用正则/包含匹配替换关键数字
     """
     P = {}  # {strategy_name: {tier: {...}}}
 
@@ -186,13 +170,7 @@ def _generate_sync_script(S, extra=None):
             _store(s, t, "calmar", m["calmar"])
             _store(s, t, "final_nv", m["final_nv"])
 
-    # 策略数据在顶层 (const D = {...})，dashboard 额外字段并排放
-    if extra:
-        ts_json = json.dumps({**P, **{k: extra[k] for k in ("signals", "latest_prices", "weights_snapshot")
-                                      if k in extra and extra[k] is not None}},
-                             ensure_ascii=False, cls=_NpEncoder)
-    else:
-        ts_json = json.dumps(P, ensure_ascii=False, cls=_NpEncoder)
+    ts_json = json.dumps(P, ensure_ascii=False, cls=_NpEncoder)
 
     return f"""
 <script>
@@ -631,7 +609,6 @@ if (T) {{
 }}());
 
 console.log('data.json sync: '+Object.keys(D).length+' strategies loaded');
-window._ALLWEATHER_DATA = D;
 }})();
 </script>""".lstrip()
 
@@ -675,8 +652,7 @@ def patch_index_html():
     # ================================================================
     # JS 自动同步脚本注入（覆盖所有数据点，包括占位符系统覆盖不到的）
     # ================================================================
-    extra = {k: data.get(k) for k in ("signals", "latest_prices", "weights_snapshot")}
-    script = _generate_sync_script(S, extra=extra)
+    script = _generate_sync_script(S)
     html = _inject_sync_script(html, script)
     replacements += 1  # 算一次注入
 

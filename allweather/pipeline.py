@@ -374,15 +374,6 @@ def step_6_save_outputs(nv_results, metrics, boot=None,
         print(f"  ok charts/（8 张图表）")
 
     # --- 同步 docs/data.json + 图表到 docs/charts/ ---
-    signals = None
-    prices_series = None
-    if panel is not None:
-        try:
-            from .rebalance import compute_signal_states
-            signals = compute_signal_states(panel)
-        except Exception:
-            pass
-        prices_series = panel.iloc[-1]
     save_docs_json(
         perf_results=metrics["perf"],
         yearly_results=metrics["yearly"],
@@ -391,8 +382,6 @@ def step_6_save_outputs(nv_results, metrics, boot=None,
         rolling_results=metrics["rolling"],
         boot_results=boot,
         weight_history=weight_history or {},
-        signals=signals,
-        latest_prices=prices_series,
     )
     patch_index_html()
 
