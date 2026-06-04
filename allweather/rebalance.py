@@ -6,6 +6,7 @@
     python -m allweather.rebalance --strat B-RP --tier 85
     python -m allweather.rebalance --signals       # 只看当前信号状态
     python -m allweather.rebalance --strat V3c --amount 500000   # 建仓清单
+    python -m allweather.rebalance --no-auto-fetch # 跳过自动拉取数据
 """
 
 import sys
@@ -428,6 +429,33 @@ def load_prices():
 
 
 # ============================================================
+# 自动更新数据
+# ============================================================
+
+def _auto_fetch_if_stale(max_calendar_days=7):
+    """检查本地数据是否陈旧，自动拉取最新行情。"""
+    hs300_path = DATA_DIR / "hs300.csv"
+    if not hs300_path.exists():
+        print("数据文件不存在，自动拉取...")
+        from .fetch import fetch_all
+        fetch_all(force=True)
+        return
+
+    try:
+        hs300 = pd.read_csv(hs300_path, parse_dates=["date"])
+        last_date = hs300["date"].max()
+        days_old = (pd.Timestamp.now() - last_date).days
+        if days_old > max_calendar_days:
+            print(f"数据已 {days_old} 天未更新（最新: {last_date.date()}），自动拉取最新行情...")
+            from .fetch import fetch_all
+            fetch_all(force=True)
+        else:
+            print(f"数据较新（{days_old} 天前），直接使用")
+    except Exception as e:
+        print(f"检查数据状态失败: {e}，使用现有数据继续")
+
+
+# ============================================================
 # 主入口
 # ============================================================
 
@@ -437,6 +465,7 @@ def main():
     tier = None
     show_signals_only = False
     build_amount = None
+    no_auto_fetch = False
 
     i = 0
     while i < len(args):
@@ -448,6 +477,8 @@ def main():
             show_signals_only = True; i += 1
         elif args[i] == "--amount" and i + 1 < len(args):
             build_amount = float(args[i + 1]); i += 2
+        elif args[i] == "--no-auto-fetch":
+            no_auto_fetch = True; i += 1
         elif args[i] in ("-h", "--help"):
             print(__doc__)
             return
@@ -462,6 +493,10 @@ def main():
         tier = "100"
     if tier not in ("100", "85", "70"):
         tier = "100"
+
+    # 自动检查并拉取最新数据（可跳过）
+    if not no_auto_fetch:
+        _auto_fetch_if_stale()
 
     print(f"加载行情数据...")
     prices = load_prices()
