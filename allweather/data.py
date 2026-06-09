@@ -1,7 +1,7 @@
 """数据加载层 - 从 data/ 读取 CSV，处理 30Y 国债合成，返回回测期价格表。"""
 import pandas as pd
 import numpy as np
-from .config import DATA_DIR, BACKTEST_START, BACKTEST_END, BOND_30Y_AMP, SAFETY_DEDUCT
+from .config import DATA_DIR, BACKTEST_START, BACKTEST_END, BOND_30Y_AMP, BOND_30Y_SPREAD_CUTOFF, BOND_30Y_DURATION, SAFETY_DEDUCT
 
 
 def load_series(name: str) -> pd.Series:
@@ -78,7 +78,7 @@ def _load_cgb_yields_spread() -> pd.Series:
         return pd.Series(dtype=float)
 
     try:
-        date_col = df.columns[0]
+        date_col = df.columns[1]
         y10_col = df.columns[8]
         y30_col = df.columns[9]
         spread = pd.to_numeric(df[y30_col], errors="coerce") - pd.to_numeric(df[y10_col], errors="coerce")
@@ -90,7 +90,7 @@ def _load_cgb_yields_spread() -> pd.Series:
         print(f"  [WARN] 收益率曲线列索引解析失败，尝试 substring 回退: {e}")
 
     # 回退：substring 匹配
-    date_col = df.columns[0]
+    date_col = df.columns[1]
     cols = df.columns.tolist()
     y10_col = next((c for c in cols if "10" in str(c)), None)
     y30_col = next((c for c in cols if "30" in str(c)), None)
@@ -119,13 +119,13 @@ def synthesize_bond_30y(s_10y: pd.Series, s_30y_etf: pd.Series) -> pd.Series:
 
     # 阶段 2: 利差法
     spread = _load_cgb_yields_spread()
-    spread_cutoff = pd.Timestamp("2020-02-01")
+    spread_cutoff = pd.Timestamp(BOND_30Y_SPREAD_CUTOFF)
 
     if not spread.empty and spread.index.min() <= spread_cutoff:
         cb10_aligned = cb10_ret[cb10_ret.index >= spread.index.min()]
         spread_aligned = spread.reindex(cb10_aligned.index).ffill()
         spread_daily = spread_aligned.diff().fillna(0.0)
-        dur = 18.0
+        dur = BOND_30Y_DURATION
         spread_ret = cb10_aligned * BOND_30Y_AMP - dur * spread_daily
         spread_nv = (1 + spread_ret).cumprod()
         spread_nv = spread_nv[spread_nv.index >= spread_cutoff]

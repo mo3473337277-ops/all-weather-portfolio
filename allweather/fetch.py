@@ -159,7 +159,6 @@ def _fetch_foreign_fut(sym, start, end):
     import akshare as ak
     df = ak.futures_foreign_hist(symbol=sym)
     df["date"] = pd.to_datetime(df["date"])
-    df = df.rename(columns={"close": "close"})
     df = df[(df["date"] >= pd.to_datetime(start)) & (df["date"] <= pd.to_datetime(end))]
     return df[["date", "close"]].sort_values("date")
 
@@ -221,8 +220,8 @@ def fetch_all(force: bool = False, start: str = DEFAULT_START, end: str = DEFAUL
 
     Args:
         force: True 时覆盖已有文件
-        start: 起始日期，格式 YYYYMMDD，默认 20150101
-        end:   结束日期，格式 YYYYMMDD，默认 20251231
+        start: 起始日期，格式 YYYYMMDD，默认 20050101
+        end:   结束日期，格式 YYYYMMDD，默认 20260530
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[fetch] 数据目录: {DATA_DIR}")

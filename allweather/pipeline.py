@@ -277,7 +277,7 @@ def step_5_print_reports(metrics, boot, weight_history=None, signal_logs=None):
     print()
     reports.print_bootstrap_table(boot)
     print()
-    reports.print_summary_recommendation()
+    reports.print_summary_recommendation(perf_results=metrics.get("perf"))
 
 
 def step_6_save_outputs(nv_results, metrics, boot=None,
@@ -328,6 +328,7 @@ def step_6_save_outputs(nv_results, metrics, boot=None,
         ws_results=metrics.get("weight_stability"),
         rc_tv_results=metrics.get("risk_contrib_tv"),
         signal_logs=signal_logs,
+        d_sig_results=metrics.get("d_sig", {}),
     )
 
     if excel:

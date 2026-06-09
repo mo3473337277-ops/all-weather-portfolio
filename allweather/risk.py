@@ -47,7 +47,9 @@ def hierarchical_rp_weights(
 
     if bucket_method == "equal":
         bucket_alloc = {k: 1.0 / n_buckets for k in bucket_w}
-    elif bucket_method in ("risk_parity", "inverse_vol"):
+    elif bucket_method in ("inverse_vol", "risk_parity"):
+        # 注意：true risk parity（等风险贡献）未实现，
+        # "risk_parity" 和 "inverse_vol" 目前都是桶级逆波动率
         inv_vols = {k: 1.0 / v for k, v in bucket_vol.items() if v > 0.001}
         total = sum(inv_vols.values())
         bucket_alloc = {k: v / total for k, v in inv_vols.items()}
@@ -63,18 +65,30 @@ def hierarchical_rp_weights(
     return capped / capped.sum()
 
 
+def _pb_pe_percentile(data, date, min_obs=252):
+    """提取截至日期的 PB/PE 分位值。返回 (当前值, 百分位) 或 (None, None)。"""
+    if data is None:
+        return None, None
+    to_date = data[data.index <= date]
+    if len(to_date) < min_obs:
+        return None, None
+    curr = to_date.iloc[-1]
+    pct = (to_date < curr).sum() / len(to_date) * 100
+    return curr, pct
+
+
 def hs300_dip_check(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
                     threshold, sma_window, exit_recovery,
                     pb_entry, pe_exit, boost_mult):
-    """HS300 AND抄底 — PB分位确认入场 + PE分位确认出场。"""
-    pb_to_date = pb_data[pb_data.index <= d]
-    pe_to_date = pe_data[pe_data.index <= d]
-    if len(pb_to_date) < 252 or len(pe_to_date) < 252:
-        return hs300_boosted, None
-    pb_pct = (pb_to_date < pb_to_date.iloc[-1]).sum() / len(pb_to_date) * 100
-    pe_pct = (pe_to_date < pe_to_date.iloc[-1]).sum() / len(pe_to_date) * 100
-    fundamental_ok = pb_pct < pb_entry
-    exit_fundamental = pe_pct > pe_exit
+    """HS300 AND抄底 — PB分位确认入场 + PE分位确认出场。
+
+    Returns:
+        (is_boosted, boost_mult): boost_mult is None when no action needed.
+    """
+    pb_curr, pb_pct = _pb_pe_percentile(pb_data, d)
+    pe_curr, pe_pct = _pb_pe_percentile(pe_data, d)
+    fundamental_ok = pb_pct is not None and pb_pct < pb_entry
+    exit_fundamental = pe_pct is not None and pe_pct > pe_exit
 
     hs300_dd = prices.iloc[i]["hs300"] / hs300_peak - 1
     curr_hs = prices.iloc[i]["hs300"]
@@ -83,7 +97,7 @@ def hs300_dip_check(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
     if hs300_boosted:
         if hs300_dd > -exit_recovery and exit_fundamental:
             return False, None
-        return True, 1.0
+        return True, None
     if hs300_dd <= -threshold and fundamental_ok and curr_hs > dip_sma:
         return True, boost_mult
     return False, None
@@ -108,18 +122,10 @@ def dynamic_cash_ratio(hs300_series: pd.Series, i: int) -> float:
 
 def hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, boost_mult):
     sig_dd = round(float(prices.iloc[i]["hs300"] / hs300_peak - 1), 4)
-    sig_pb_val, sig_pb_pct = None, None
-    sig_pe_val, sig_pe_pct = None, None
-    if pb_data is not None:
-        pb_to = pb_data[pb_data.index <= d]
-        if len(pb_to) >= 252:
-            sig_pb_val = float(pb_to.iloc[-1])
-            sig_pb_pct = round((pb_to < sig_pb_val).sum() / len(pb_to) * 100, 1)
-    if pe_data is not None:
-        pe_to = pe_data[pe_data.index <= d]
-        if len(pe_to) >= 252:
-            sig_pe_val = float(pe_to.iloc[-1])
-            sig_pe_pct = round((pe_to < sig_pe_val).sum() / len(pe_to) * 100, 1)
+    sig_pb_val, sig_pb_pct = _pb_pe_percentile(pb_data, d)
+    sig_pe_val, sig_pe_pct = _pb_pe_percentile(pe_data, d)
+    sig_pb_pct = round(sig_pb_pct, 1) if sig_pb_pct is not None else None
+    sig_pe_pct = round(sig_pe_pct, 1) if sig_pe_pct is not None else None
     return {
         'dd_pct': sig_dd,
         'pb_pctile': sig_pb_pct,

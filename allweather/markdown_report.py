@@ -52,12 +52,22 @@ def _section_header():
     ]
 
 
-def _section_recommendation():
+def _section_recommendation(perf_results=None):
+    def _fmt(name, key, pct=True):
+        if perf_results:
+            v = perf_results.get((name, "100% RP"), {}).get(key)
+            if v is not None and not (isinstance(v, float) and v != v):
+                return f"{v*100:.2f}%" if pct else f"{v:.2f}"
+        return ""
+
     items = sorted(PORTFOLIO_TAGS.items(), key=lambda kv: -len(kv[1]["stars"]))
+    cagr3 = _fmt("V3c 多元", "cagr")
+    cagr_rp = _fmt("V3-B 风险平价(20d)", "cagr")
+    sharpe_con = _fmt("V3-B 保守增强(20d)", "sharpe", pct=False)
     notes = {
-        "V3c 多元": "实战派 — 6资产逆波动率 60d + nonferr 趋势过滤 + HS300抄底，CAGR 9.37%",
-        "V3-B 风险平价(20d)": "学院派 — 4桶分层风险平价(30Y) + nonferr/gold/sp500 趋势过滤 + Gold/HS300抄底，CAGR 11.40%",
-        "V3-B 保守增强(20d)": "保守增强 — 逆波动率+nonferr趋势过滤+HS300抄底，Sharpe 最高（1.68）",
+        "V3c 多元": f"实战派 — 6资产逆波动率 60d + nonferr 趋势过滤 + HS300抄底{f'，CAGR {cagr3}' if cagr3 else ''}",
+        "V3-B 风险平价(20d)": f"学院派 — 4桶分层风险平价(30Y) + nonferr/gold/sp500 趋势过滤 + Gold/HS300抄底{f'，CAGR {cagr_rp}' if cagr_rp else ''}",
+        "V3-B 保守增强(20d)": f"保守增强 — 逆波动率+nonferr趋势过滤+HS300抄底{'，Sharpe 最高（' + sharpe_con + '）' if sharpe_con else ''}",
     }
     rows = [(tag["stars"], port, tag["label"], notes.get(port, ""))
             for port, tag in items]
@@ -98,7 +108,8 @@ def _section_perf(perf_results):
 
 def _section_yearly(yearly_results, years=None):
     if years is None:
-        years = list(range(2008, 2026))
+        first = next(iter(yearly_results.values()), pd.Series(dtype=float))
+        years = sorted(first.index) if len(first) > 0 else []
     rows = []
     for port, s in yearly_results.items():
         row = [port] + [_pct(s.get(y, None), sign=True) for y in years]
@@ -325,6 +336,34 @@ def _section_bootstrap(boot_results):
     ]
 
 
+def _section_d_significance(d_sig):
+    """D_excess 统计显著性表。"""
+    rows = []
+    for port, ds in d_sig.items():
+        sig = "**" if ds["significant_05"] else "—"
+        rows.append([
+            port,
+            _pct(ds["d_actual"], d=3, sign=True),
+            _pct(ds["d_null_mean"], d=3, sign=True),
+            _pct(ds["ci_95_low"], d=3, sign=True),
+            _pct(ds["ci_95_high"], d=3, sign=True),
+            f"{ds['percentile']*100:.1f}%",
+            sig,
+        ])
+    return [
+        "## 8. D_excess 统计显著性（正态参数 Bootstrap × 10000）",
+        "",
+        "| 方案 | D_actual | null均值 | 95% CI低 | 95% CI高 | 分位 | 显著? |",
+        "|------|----------|----------|----------|----------|-------|-------|",
+    ] + ["| " + " | ".join(r) + " |" for r in rows] + [
+        "",
+        "D ≈ null 均值 + 分位 ≈ 50% → 收益分布与正态无异，零尾部风险证据",
+        "",
+        "D << null 低分位(>97.5%) → 显著负偏/肥尾，存在隐藏风险",
+        "",
+    ]
+
+
 def _section_holdings(weights_dict, principal=1_000_000):
     ports = list(weights_dict.keys())
     rows = []
@@ -337,7 +376,7 @@ def _section_holdings(weights_dict, principal=1_000_000):
             rows.append(row)
     rows.append(["**合计**", "", ""] + [_money(principal) for _ in ports])
     return [
-        f"## 8. 持仓清单（按 {principal:,.0f} 本金，100% RP 档）",
+        f"## 9. 持仓清单（按 {principal:,.0f} 本金，100% RP 档）",
         "",
         _md_table(["桶", "资产", "代码"] + ports, rows),
         "",
@@ -354,7 +393,7 @@ def _section_weights(weights_dict):
         rows.append([a] + [_pct(weights_dict[p][a]) for p in ports])
     rows.append(["**合计**"] + [_pct(weights_dict[p].sum()) for p in ports])
     return [
-        "## 9. 权重明细",
+        "## 10. 权重明细",
         "",
         _md_table(["资产"] + ports, rows),
         "",
@@ -397,12 +436,13 @@ def save_markdown_report(
     ws_results=None,
     signal_logs=None,
     rc_tv_results=None,
+    d_sig_results=None,
 ):
     """生成 output/report.md。"""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     parts = []
     parts.extend(_section_header())
-    parts.extend(_section_recommendation())
+    parts.extend(_section_recommendation(perf_results))
     parts.extend(_section_perf(perf_results))
     parts.extend(_section_yearly(yearly_results))
     parts.extend(_section_risk_contrib(rc_results))
@@ -412,6 +452,8 @@ def save_markdown_report(
     parts.extend(_section_events(event_results))
     parts.extend(_section_rolling(rolling_results))
     parts.extend(_section_bootstrap(boot_results))
+    if d_sig_results:
+        parts.extend(_section_d_significance(d_sig_results))
     parts.extend(_section_holdings(weights_dict))
     parts.extend(_section_weights(weights_dict))
     parts.extend(_section_footer())

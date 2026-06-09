@@ -63,11 +63,13 @@ def event_returns(nv: pd.Series, events: list) -> dict:
 
 def bucket_risk_contribution(weights: pd.Series, rets: pd.DataFrame) -> dict:
     """协方差视角下，各桶的风险贡献占比。"""
-    cov = rets.cov().values * 252
-    w = weights.values
+    common = weights.index.intersection(rets.columns)
+    w = weights[common].values
+    r = rets[common]
+    cov = r.cov().values * 252
     pv = w @ cov @ w
     rc = w * (cov @ w) / pv
-    rc_s = pd.Series(rc, index=weights.index)
+    rc_s = pd.Series(rc, index=common)
     return {bucket: sum(rc_s[a] for a in lst if a in rc_s.index)
             for bucket, lst in BUCKETS.items()}
 
@@ -171,6 +173,7 @@ def risk_contribution_time_varying(
 
 def regime_returns(nv: pd.Series, rets: pd.DataFrame) -> dict:
     """4 宏观情景（股牛/熊 × 债牛/熊）平均季度收益。"""
+    # hardcoded "hs300"/"bond_10y" — 稳定列名，需要时再参数化
     qhs = rets["hs300"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
     qbond = rets["bond_10y"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
     regime = pd.Series(index=qhs.index, dtype=object)
@@ -209,7 +212,7 @@ def rolling_stats(nv: pd.Series, window: int = 252) -> dict:
     }
 
 
-def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int = 42) -> dict:
+def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int | None = None) -> dict:
     """D_excess 统计显著性 — 正态参数 Bootstrap。
 
     在收益正态分布的零假设下，模拟 n_sim 条路径，
@@ -229,7 +232,7 @@ def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int = 42) -> dict:
     mu_log_daily = np.log(1 + cagr) / 252 - sigma_d**2 / 2
     rf_daily = RISK_FREE_ANNUAL / 252
 
-    rng = np.random.RandomState(seed)
+    rng = np.random.RandomState(seed if seed is not None else BOOTSTRAP_SEED)
     D_sim = np.zeros(n_sim)
     for s in range(n_sim):
         log_r = rng.normal(mu_log_daily, sigma_d, n_days)
@@ -264,6 +267,12 @@ def block_bootstrap(weights: pd.Series, rets: pd.DataFrame,
     rng = np.random.RandomState(seed)
     arr = rets.values
     n_days = len(arr)
+
+    if n_days < block:
+        return {"p05": None, "p25": None, "p50": None,
+                "p75": None, "p95": None,
+                "ann_median": None, "loss_prob": None, "samples": []}
+
     w = weights.values
 
     samples = []

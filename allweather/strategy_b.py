@@ -96,29 +96,23 @@ def backtest_b(
     weight_log = {} if track_weights else None
     signal_log = [] if track_signals else None
 
-    # --- Nonferr risk control state ---
+    # --- Risk control state — 统一初始化 prices ---
     prices = None
-    if nonferr_control is not None and "nonferr" in cols:
+    if (
+        (nonferr_control is not None and "nonferr" in cols) or
+        (gold_dip_threshold is not None and "gold" in cols) or
+        (hs300_dip_threshold is not None and "hs300" in cols) or
+        gold_trend_filter or dynamic_cash or equity_trend_assets
+    ):
         prices = (1 + rets_rp).cumprod()
 
-    # --- Gold dip-buying state ---
-    gold_peak = 1.0
+    gold_peak = prices.iloc[0]["gold"] if (prices is not None and gold_dip_threshold is not None and "gold" in cols) else 1.0
     gold_boosted = False
-    if gold_dip_threshold is not None and "gold" in cols:
-        if prices is None:
-            prices = (1 + rets_rp).cumprod()
-        gold_peak = prices.iloc[0]["gold"]
-
-    # --- hs300 dip-buying state ---
-    hs300_peak = 1.0
-    if hs300_dip_threshold is not None and "hs300" in cols:
-        if prices is None:
-            prices = (1 + rets_rp).cumprod()
-        hs300_peak = prices.iloc[0]["hs300"]
+    hs300_peak = prices.iloc[0]["hs300"] if (prices is not None and hs300_dip_threshold is not None and "hs300" in cols) else 1.0
+    hs300_boosted = False
 
     pb_data = load_hs300_pb() if hs300_value_dip else None
     pe_data = load_hs300_pe() if hs300_value_dip else None
-    hs300_boosted = False
 
     for i, d in enumerate(rets.index):
         if i == 0:
@@ -217,8 +211,9 @@ def backtest_b(
 
             # --- 后处理截断：在 dip-buying/trend filter 全部执行后，再砍一刀 ---
             if post_process_max_w is not None:
+                orig_sum = w.sum()
                 w = w.clip(upper=post_process_max_w)
-                w = w / w.sum()
+                w = w / w.sum() * orig_sum
 
             # --- 信号触发日志（每月调仓日记录全部风控状态）---
             if track_signals:

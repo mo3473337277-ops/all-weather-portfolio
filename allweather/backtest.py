@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 from .config import (
-    REBAL_FREQ, RISK_FREE_RATE,
+    RISK_FREE_RATE,
     GOLD_DIP_THRESHOLD, GOLD_DIP_BOOST,
     HS300_DIP_THRESHOLD, HS300_DIP_BOOST,
     HS300_DIP_SMA, HS300_DIP_EXIT_RECOVERY,
@@ -14,7 +14,6 @@ from .config import (
 def backtest_iv(
     rets: pd.DataFrame,
     cash_ratio: float = 0.0,
-    rebal_freq: str = REBAL_FREQ,
     rf_daily: float = RISK_FREE_RATE,
     iv_window: int = 60,
     max_w: float = 0.25,
@@ -197,8 +196,9 @@ def backtest_iv(
                 signal_log.append(entry)
 
             if post_process_max_w is not None:
+                orig_sum = w.sum()
                 w = w.clip(upper=post_process_max_w)
-                w = w / w.sum()
+                w = w / w.sum() * orig_sum
 
             eff_cash = 1.0 - w.sum()
 

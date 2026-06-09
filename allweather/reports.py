@@ -87,7 +87,8 @@ def print_yearly_table(yearly_results: dict, years=None):
     """分年化收益表。yearly_results: {port: pd.Series}"""
     print_header("【2】分年化收益（100% RP 档）")
     if years is None:
-        years = list(range(2008, 2026))
+        first = next(iter(yearly_results.values()), pd.Series(dtype=float))
+        years = sorted(first.index) if len(first) > 0 else []
     print(f"  {'方案':<14}" + "".join(f"{y:>9}" for y in years))
     for port, s in yearly_results.items():
         line = f"  {port:<14}"
@@ -268,33 +269,39 @@ def print_bootstrap_table(boot_results: dict):
               f"{_fmt_pct(b['loss_prob'], w=10)}")
 
 
-def print_summary_recommendation():
+def print_summary_recommendation(perf_results=None):
+    def _pv(name, key, fmt, suffix=""):
+        if perf_results:
+            v = perf_results.get((name, "100% RP"), {}).get(key)
+            if v is not None and not (isinstance(v, float) and (v != v)):
+                return f"{v*100 if 'pct' in fmt else v:.2f}" + suffix
+        return ""
     print_header("【9】策略评估与推荐", char="*", width=100)
     print()
 
     cards = [
         ("V3c 多元", "★★★", "简约派", "6资产逆波动率 60d + nonferr趋势过滤(75d) + HS300 AND抄底",
-         ["+ 资产最少(6个)，执行最简单",
-          "+ 回撤可控(-7.01%)，回报稳健(8.93%)",
+         [f"+ 资产最少(6个)，执行最简单",
+          f"+ 回撤可控({_pv('V3c 多元','mdd','pct','%')})，回报稳健({_pv('V3c 多元','cagr','pct','%')})",
           "+ 每月调仓一次，交易频率低",
           "- 无桶级风控，单资产上限 30% 较宽松",
           "- 长期回报低于 V3-B RP"],
          "适合：初入全天候、不想研究桶逻辑、追求简单透明"),
 
         ("V3-B 风险平价(20d)", "★★★", "学院派", "4桶等权 HRP + nonferr(75d) + Gold(75d) + SP500(120d) + HS300 AND抄底",
-         ["+ 长期回报最高 CAGR 10.03%，累计 799%",
+         [f"+ 长期回报最高 CAGR {_pv('V3-B 风险平价(20d)','cagr','pct','%')}，累计 {_pv('V3-B 风险平价(20d)','cum_return','pct','%')}",
           "+ 四桶真正等权(25%x4)，全天候理念最纯正",
           "+ 桶级分散 + 资产级分散 + 三趋势过滤三重风控",
-          "- 回撤(-9.48%)，最差年份 2011 -1.22%",
+          f"- 回撤({_pv('V3-B 风险平价(20d)','mdd','pct','%')})，最差年份 2011 -1.22%",
           "- 4桶逻辑比另外两个策略复杂"],
          "适合：长期持有者(5年+)、认同正统全天候理念、能承受短期波动"),
 
         ("V3-B 保守增强(20d)", "★★★", "保守增强", "逆波动率 20d + nonferr趋势(75d) + HS300 AND抄底，max_w=0.25",
-         ["+ 回撤最低(-6.40%)，Sharpe 最高(1.75)",
-          "+ 熊市表现最好(2008 +14.95%，2022 +3.42%)",
+         [f"+ 回撤最低({_pv('V3-B 保守增强(20d)','mdd','pct','%')})，Sharpe 最高({_pv('V3-B 保守增强(20d)','sharpe','num')})",
+          f"+ 熊市表现最好(2008 +14.95%，2022 +3.42%)",
           "+ 风险调整后效率最优",
           "- 牛市可能跑输(2019 +7.58%，2017 +2.67%)",
-          "- 长期累计回报最低(369%)"],
+          f"- 长期累计回报最低({_pv('V3-B 保守增强(20d)','cum_return','pct','%')})"],
          "适合：保守型资金、退休/教育金、无法承受大幅回撤"),
     ]
 

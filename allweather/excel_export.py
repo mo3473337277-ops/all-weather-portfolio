@@ -97,8 +97,8 @@ def _sheet_recommendation(wb):
     _write_headers(ws, 3, ["推荐度", "方案", "标签", "说明"])
     notes = {
         "V3c 多元": "海外 8% 国别分散最强，综合 Sharpe 最高，蒙特卡洛下沿最厚实",
-        "V3b 平衡": "长债 58%，回撤最浅 -2.26%，求稳者首选",
-        "V3d 商品偏重": "商品 27%，CAGR 最高，抗滞胀但回撤更深",
+        "V3-B 风险平价(20d)": "4桶等权HRP + Gold/SP500趋势过滤，CAGR 最高，攻守兼备",
+        "V3-B 保守增强(20d)": "逆波动率 20d + max_w=0.25，Sharpe 最高，回撤最浅",
     }
     # PORTFOLIO_TAGS 的顺序不是推荐顺序，按 stars 数量重排
     items = sorted(PORTFOLIO_TAGS.items(), key=lambda kv: -len(kv[1]["stars"]))
@@ -166,7 +166,8 @@ def _sheet_perf(wb, perf_results):
 def _sheet_yearly(wb, yearly_results, years=None):
     ws = wb.create_sheet("分年化收益")
     if years is None:
-        years = list(range(2008, 2026))
+        first = next(iter(yearly_results.values()), pd.Series(dtype=float))
+        years = sorted(first.index) if len(first) > 0 else []
     _write_title(ws, 1, f"分年化收益（100% RP 档）", len(years) + 1)
     _write_headers(ws, 3, ["方案"] + [str(y) for y in years])
     for i, (port, s) in enumerate(yearly_results.items(), start=4):
@@ -331,6 +332,25 @@ def _sheet_bootstrap(wb, boot_results):
     _autofit(ws)
 
 
+def _sheet_d_significance(wb, d_sig):
+    ws = wb.create_sheet("D_excess显著性")
+    headers = ["方案", "D_actual", "null均值", "95% CI低", "95% CI高", "分位", "显著?"]
+    _write_title(ws, 1, "D_excess 统计显著性（正态参数 Bootstrap × 10000）", len(headers))
+    _write_headers(ws, 3, headers)
+    for i, (port, ds) in enumerate(d_sig.items(), start=4):
+        ws.cell(row=i, column=1, value=port).alignment = LEFT
+        ws.cell(row=i, column=2, value=round(ds["d_actual"], 4))
+        ws.cell(row=i, column=3, value=round(ds["d_null_mean"], 4))
+        ws.cell(row=i, column=4, value=round(ds["ci_95_low"], 4))
+        ws.cell(row=i, column=5, value=round(ds["ci_95_high"], 4))
+        ws.cell(row=i, column=6, value=round(ds["percentile"] * 100, 1))
+        ws.cell(row=i, column=7, value="**" if ds["significant_05"] else "—")
+    _apply_pct_neg_red(ws, 4, 3 + len(d_sig), 2, 5)
+    for r in range(4, 4 + len(d_sig)):
+        ws.cell(row=r, column=1).border = BORDER
+    _autofit(ws)
+
+
 def _sheet_holdings(wb, weights_dict, principal=1_000_000):
     ws = wb.create_sheet("持仓清单")
     ports = list(weights_dict.keys())
@@ -433,6 +453,7 @@ def save_excel_report(
     ws_results=None,
     rc_tv_results=None,
     signal_logs=None,
+    d_sig_results=None,
 ):
     """生成 output/report.xlsx 多 sheet 综合报告。"""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -449,6 +470,8 @@ def save_excel_report(
     _sheet_events(wb, event_results)
     _sheet_rolling(wb, rolling_results)
     _sheet_bootstrap(wb, boot_results)
+    if d_sig_results:
+        _sheet_d_significance(wb, d_sig_results)
     _sheet_holdings(wb, weights_dict)
     _sheet_nv_curves(wb, nv_results)
     _sheet_weights(wb, weights_dict)
