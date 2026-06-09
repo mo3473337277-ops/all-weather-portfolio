@@ -136,9 +136,9 @@ allweather/
 
 | 策略 | 引擎 | 核心逻辑 | 资产数 | 特点 |
 |------|------|----------|--------|------|
-| V3c 多元 | `backtest.py::backtest_iv` | 逆波动率 60d (max 0.30) + nonferr 75d + gold_boosted + HS300 AND抄底 | 6 | 最简，每月调仓 |
-| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + gold_boosted + Gold dip + HS300 AND抄底 | 6 (无 bond_10y) | CAGR 最高，三重风控 |
-| V3-B 保守增强(20d) | `strategy_b.py::backtest_b` | 逆波动率 20d (max 0.25) + nonferr 75d + gold_boosted + HS300 AND抄底 | 7 (含 bond_10y) | Sharpe 最高 |
+| V3c 多元 | `backtest.py::backtest_iv` | 逆波动率 60d (max 0.30) + nonferr 75d + HS300 AND抄底 | 6 | 最简，每月调仓 |
+| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 | 6 (无 bond_10y) | CAGR 最高，三重风控 |
+| V3-B 保守增强(20d) | `strategy_b.py::backtest_b` | 逆波动率 20d (max 0.25) + nonferr 75d + HS300 AND抄底 | 7 (含 bond_10y) | Sharpe 最高 |
 
 × 3 现金档（含动态）：100% RP / 85% RP / 70% RP / 动态。div_idx 和 soymeal 已于 2026-05-27 移除。
 wti（原油 501018）已集成数据管道和引擎，因 QDII 限购暂不可执行。

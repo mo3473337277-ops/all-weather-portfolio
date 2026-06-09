@@ -228,12 +228,6 @@ def step_4_bootstrap(rets, nv_results=None):
             if "保守增强" in portfolio:
                 proxy_w = inverse_vol_weights(
                     boot_rets[V3B_ASSETS].tail(20), window=20, max_w=0.25, min_w=RISK_PARITY_MIN_WEIGHT)
-            elif "风险平价桶" in portfolio:
-                proxy_w = hierarchical_rp_weights(
-                    boot_rets[V3B_RP_ASSETS].tail(20), rp_buckets_boot_rp, 20,
-                    RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
-                    bucket_method="risk_parity",
-                )
             elif "V3c" in portfolio:
                 proxy_w = inverse_vol_weights(
                     boot_rets[V3C_ASSETS].tail(60), window=60, max_w=0.30, min_w=0.03)
