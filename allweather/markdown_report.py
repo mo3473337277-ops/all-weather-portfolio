@@ -76,7 +76,7 @@ def _section_recommendation(perf_results=None):
         "",
         _md_table(["推荐度", "方案", "标签", "说明"], rows),
         "",
-        "> **V3c** 和 **V3-B** 是两条不同路线的 ★★★ 推荐：V3-B 4桶(30Y) CAGR 最高（11.40%），V3c 落地最简单，保守增强 Sharpe 最高（1.68）适合低波动偏好。",
+        "> **V3c** 和 **V3-B** 是两条不同路线的 ★★★ 推荐：V3-B 4桶(30Y) CAGR 最高，V3c 落地最简单，保守增强 Sharpe 最高适合低波动偏好。",
         "",
     ]
 
