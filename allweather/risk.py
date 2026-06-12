@@ -3,6 +3,17 @@ import numpy as np
 import pandas as pd
 
 
+def _clip_normalize(w: pd.Series, min_w: float, max_w: float, max_iter: int = 10) -> pd.Series:
+    """迭代 clip→renormalize 直到所有权重落在 [min_w, max_w] 内。"""
+    w = w.fillna(0.0)
+    for _ in range(max_iter):
+        w = w.clip(lower=min_w, upper=max_w)
+        w = w / w.sum()
+        if w.max() <= max_w * (1 + 1e-10) and w.min() >= min_w * (1 - 1e-10):
+            break
+    return w
+
+
 def inverse_vol_weights(returns: pd.DataFrame, window: int = 60,
                         max_w: float = 0.25, min_w: float = 0.02) -> pd.Series:
     if len(returns) < 20:
@@ -12,8 +23,7 @@ def inverse_vol_weights(returns: pd.DataFrame, window: int = 60,
     vols = recent.std() * np.sqrt(252)
     inv_vol = 1 / vols.replace(0, np.nan)
     raw = inv_vol / inv_vol.sum()
-    capped = raw.clip(lower=min_w, upper=max_w)
-    return capped / capped.sum()
+    return _clip_normalize(raw, min_w, max_w)
 
 
 def hierarchical_rp_weights(
@@ -61,32 +71,53 @@ def hierarchical_rp_weights(
         for asset in bucket_w[bname].index:
             raw[asset] = bw * bucket_w[bname][asset]
 
-    capped = raw.clip(lower=min_w, upper=max_w)
-    return capped / capped.sum()
+    capped = _clip_normalize(raw, min_w, max_w)
+    return capped
 
 
-def _pb_pe_percentile(data, date, min_obs=252):
-    """提取截至日期的 PB/PE 分位值。返回 (当前值, 百分位) 或 (None, None)。"""
+
+def _precompute_percentile(data, min_obs=252):
+    """一次性算好每日滚动分位值，O(n²) 向量化。"""
+    if data is None or len(data) < min_obs:
+        return pd.Series(dtype=float)
+    arr = data.values.astype(float)
+    n = len(arr)
+    less_than = arr[:, None] < arr[None, :]
+    running_count = np.cumsum(less_than, axis=0)
+    result = np.full(n, np.nan)
+    rows = np.arange(min_obs, n) - 1
+    cols = np.arange(min_obs, n)
+    result[min_obs:] = running_count[rows, cols] / (cols + 1) * 100
+    return pd.Series(result, index=data.index)
+
+
+def _pb_pe_percentile(data, date, min_obs=252, pct_data=None):
+    """提取截至日期的 PB/PE 分位值。返回 (当前值, 百分位) 或 (None, None)。
+
+    传入预计算的 pct_data（_precompute_percentile 输出）可 O(1) 查表。
+    """
     if data is None:
         return None, None
     to_date = data[data.index <= date]
     if len(to_date) < min_obs:
         return None, None
     curr = to_date.iloc[-1]
-    pct = (to_date < curr).sum() / len(to_date) * 100
+    if pct_data is not None and date in pct_data.index and not pd.isna(pct_data.loc[date]):
+        pct = pct_data.loc[date]
+    else:
+        pct = (to_date < curr).sum() / len(to_date) * 100
     return curr, pct
 
 
 def hs300_dip_check(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
                     threshold, sma_window, exit_recovery,
-                    pb_entry, pe_exit, boost_mult):
+                    pb_entry, pe_exit, boost_mult,
+                    pb_pct_series=None, pe_pct_series=None):
     """HS300 AND抄底 — PB分位确认入场 + PE分位确认出场。
-
-    Returns:
-        (is_boosted, boost_mult): boost_mult is None when no action needed.
+    pb_pct_series/pe_pct_series 为预计算分位，传参可 O(1) 查表。
     """
-    pb_curr, pb_pct = _pb_pe_percentile(pb_data, d)
-    pe_curr, pe_pct = _pb_pe_percentile(pe_data, d)
+    pb_curr, pb_pct = _pb_pe_percentile(pb_data, d, pct_data=pb_pct_series)
+    pe_curr, pe_pct = _pb_pe_percentile(pe_data, d, pct_data=pe_pct_series)
     fundamental_ok = pb_pct is not None and pb_pct < pb_entry
     exit_fundamental = pe_pct is not None and pe_pct > pe_exit
 
@@ -120,10 +151,11 @@ def dynamic_cash_ratio(hs300_series: pd.Series, i: int) -> float:
     return 0.15
 
 
-def hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, boost_mult):
+def hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, boost_mult,
+                          pb_pct_series=None, pe_pct_series=None):
     sig_dd = round(float(prices.iloc[i]["hs300"] / hs300_peak - 1), 4)
-    sig_pb_val, sig_pb_pct = _pb_pe_percentile(pb_data, d)
-    sig_pe_val, sig_pe_pct = _pb_pe_percentile(pe_data, d)
+    sig_pb_val, sig_pb_pct = _pb_pe_percentile(pb_data, d, pct_data=pb_pct_series)
+    sig_pe_val, sig_pe_pct = _pb_pe_percentile(pe_data, d, pct_data=pe_pct_series)
     sig_pb_pct = round(sig_pb_pct, 1) if sig_pb_pct is not None else None
     sig_pe_pct = round(sig_pe_pct, 1) if sig_pe_pct is not None else None
     return {

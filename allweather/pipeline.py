@@ -7,6 +7,8 @@ import pandas as pd
 from .data import load_panel
 
 from .backtest import backtest_iv
+from .data import load_hs300_pb, load_hs300_pe
+from .risk import _precompute_percentile
 from .stats import (
     perf_metrics, yearly_returns, event_returns,
     regime_returns, rolling_stats,
@@ -14,8 +16,7 @@ from .stats import (
     weight_stability, risk_contribution_time_varying,
 )
 from .config import (
-    CASH_TIERS, STRESS_EVENTS, OUTPUT_DIR,
-    RISK_PARITY_WINDOW, RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
+    STRESS_EVENTS, OUTPUT_DIR,
     V3C_ASSETS, BUCKETS, BUCKET_GROUPS,
     SP500_TREND_WINDOW,
 )
@@ -53,64 +54,41 @@ def step_2_run_backtests(rets):
     print("Step 2/6: 跑组合回测")
     print("─" * 60)
     t0 = time.time()
+    # 预加载 PB/PE，避免每个回测内部重复加载
+    hs300_pb_data = load_hs300_pb()
+    hs300_pe_data = load_hs300_pe()
+    hs300_pb_pct = _precompute_percentile(hs300_pb_data)
+    hs300_pe_pct = _precompute_percentile(hs300_pe_data)
     nv_results = {}
     weight_history = {}
     signal_logs = {}
     n_rebal_total = 0
 
-    # --- V3c: 逆波动率加权（60d，6 资产）+ nonferr 趋势过滤 ---
-    for tier_label, c in CASH_TIERS:
-        track = (tier_label == "100% RP")
-        result = backtest_iv(rets, cash_ratio=c, iv_window=60, max_w=0.30, min_w=0.03,
-                            nonferr_trend_window=75, assets=V3C_ASSETS,
-                            gold_dip_threshold=None, gold_dip_cap=0.20,
-                            hs300_value_dip=True,
-                            track_weights=track,
-                            track_signals=track,
-                            signal_label="V3c 多元")
-        if track:
-            nv, n, wh, sl = result
-            weight_history["V3c 多元"] = wh
-            signal_logs["V3c 多元"] = sl
-        else:
-            nv, n = result
-        nv_results[("V3c 多元", tier_label)] = nv
-        n_rebal_total += n
+    from .backtest import adjust_nav_for_cash
 
-    nv, n = backtest_iv(rets, cash_ratio=0.0, iv_window=60, max_w=0.30, min_w=0.03,
+    from .strategy_b import backtest_b
+
+    # --- V3c: single call, base + dynamic nav ---
+    result = backtest_iv(rets, cash_ratio=0.0, iv_window=60, max_w=0.30, min_w=0.03,
                         nonferr_trend_window=75, assets=V3C_ASSETS,
                         gold_dip_threshold=None, gold_dip_cap=0.20,
                         hs300_value_dip=True,
-                        dynamic_cash=True)
-    nv_results[("V3c 多元", "动态")] = nv
+                        track_weights=True, track_signals=True,
+                        signal_label="V3c 多元",
+                        hs300_pb_data=hs300_pb_data, hs300_pe_data=hs300_pe_data,
+                        hs300_pb_pct=hs300_pb_pct, hs300_pe_pct=hs300_pe_pct,
+                        track_dynamic_nav=True)
+    nv_base, nv_dyn, n, wh, sl = result
+    nv_results[("V3c 多元", "100% RP")] = nv_base
+    nv_results[("V3c 多元", "动态")] = nv_dyn
+    weight_history["V3c 多元"] = wh
+    signal_logs["V3c 多元"] = sl
     n_rebal_total += n
+    for tier_label, c in [("85% RP", 0.15), ("70% RP", 0.30)]:
+        nv_results[("V3c 多元", tier_label)] = adjust_nav_for_cash(nv_base, c)
 
-    # --- 方案 B: 分层风险平价（20d, 4 桶）+ nonferr 趋势过滤 + gold 趋势过滤 ---
-    from .strategy_b import backtest_b
-    for tier_label, c in CASH_TIERS:
-        track = (tier_label == "100% RP")
-        result = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=c, rp_window=20,
-                            rp_buckets=V3B_RP_BUCKETS,
-                            nonferr_control="trend_filter",
-                            nonferr_trend_window=75,
-                            gold_trend_filter=True,
-                            gold_trend_window=75,
-                            equity_trend_assets=["us_sp500"],
-                            equity_trend_window=SP500_TREND_WINDOW,
-                            hs300_value_dip=True,
-                            track_weights=track,
-                            track_signals=track,
-                            signal_label="V3-B 风险平价")
-        if track:
-            nv, n, wh, sl = result
-            weight_history["V3-B 风险平价(20d)"] = wh
-            signal_logs["V3-B 风险平价"] = sl
-        else:
-            nv, n = result
-        nv_results[("V3-B 风险平价(20d)", tier_label)] = nv
-        n_rebal_total += n
-
-    nv, n = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=0.0, rp_window=20,
+    # --- V3-B RP: single call, base + dynamic nav ---
+    result = backtest_b(rets[V3B_RP_ASSETS], cash_ratio=0.0, rp_window=20,
                         rp_buckets=V3B_RP_BUCKETS,
                         nonferr_control="trend_filter",
                         nonferr_trend_window=75,
@@ -119,42 +97,41 @@ def step_2_run_backtests(rets):
                         equity_trend_assets=["us_sp500"],
                         equity_trend_window=SP500_TREND_WINDOW,
                         hs300_value_dip=True,
-                        dynamic_cash=True)
-    nv_results[("V3-B 风险平价(20d)", "动态")] = nv
+                        track_weights=True, track_signals=True,
+                        signal_label="V3-B 风险平价",
+                        hs300_pb_data=hs300_pb_data, hs300_pe_data=hs300_pe_data,
+                        hs300_pb_pct=hs300_pb_pct, hs300_pe_pct=hs300_pe_pct,
+                        track_dynamic_nav=True)
+    nv_base, nv_dyn, n, wh, sl = result
+    nv_results[("V3-B 风险平价(20d)", "100% RP")] = nv_base
+    nv_results[("V3-B 风险平价(20d)", "动态")] = nv_dyn
+    weight_history["V3-B 风险平价(20d)"] = wh
+    signal_logs["V3-B 风险平价(20d)"] = sl
     n_rebal_total += n
+    for tier_label, c in [("85% RP", 0.15), ("70% RP", 0.30)]:
+        nv_results[("V3-B 风险平价(20d)", tier_label)] = adjust_nav_for_cash(nv_base, c)
 
-    # --- 方案 B 增强: 逆波動率 + nonferr 趋势过滤 ---
-    for tier_label, c in CASH_TIERS:
-        track = (tier_label == "100% RP")
-        result = backtest_b(rets[V3B_ASSETS], cash_ratio=c, rp_window=20,
-                            max_w=0.25,
-                            nonferr_control="trend_filter",
-                            nonferr_trend_window=75,
-                            weighting_method="inverse_vol",
-                            gold_dip_threshold=None, gold_dip_cap=0.20,
-                            hs300_value_dip=True,
-                            track_weights=track,
-                            track_signals=track,
-                            signal_label="V3-B 保守增强")
-        if track:
-            nv, n, wh, sl = result
-            weight_history["V3-B 保守增强(20d)"] = wh
-            signal_logs["V3-B 保守增强"] = sl
-        else:
-            nv, n = result
-        nv_results[("V3-B 保守增强(20d)", tier_label)] = nv
-        n_rebal_total += n
-
-    nv, n = backtest_b(rets[V3B_ASSETS], cash_ratio=0.0, rp_window=20,
+    # --- V3-B Con: single call, base + dynamic nav ---
+    result = backtest_b(rets[V3B_ASSETS], cash_ratio=0.0, rp_window=20,
                         max_w=0.25,
                         nonferr_control="trend_filter",
                         nonferr_trend_window=75,
                         weighting_method="inverse_vol",
                         gold_dip_threshold=None, gold_dip_cap=0.20,
                         hs300_value_dip=True,
-                        dynamic_cash=True)
-    nv_results[("V3-B 保守增强(20d)", "动态")] = nv
+                        track_weights=True, track_signals=True,
+                        signal_label="V3-B 保守增强",
+                        hs300_pb_data=hs300_pb_data, hs300_pe_data=hs300_pe_data,
+                        hs300_pb_pct=hs300_pb_pct, hs300_pe_pct=hs300_pe_pct,
+                        track_dynamic_nav=True)
+    nv_base, nv_dyn, n, wh, sl = result
+    nv_results[("V3-B 保守增强(20d)", "100% RP")] = nv_base
+    nv_results[("V3-B 保守增强(20d)", "动态")] = nv_dyn
+    weight_history["V3-B 保守增强(20d)"] = wh
+    signal_logs["V3-B 保守增强(20d)"] = sl
     n_rebal_total += n
+    for tier_label, c in [("85% RP", 0.15), ("70% RP", 0.30)]:
+        nv_results[("V3-B 保守增强(20d)", tier_label)] = adjust_nav_for_cash(nv_base, c)
 
     total = len(nv_results)
     print(f"  ok 完成 {total} 个回测")
@@ -169,7 +146,8 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
     print("Step 3/6: 计算衍生指标")
     print("─" * 60)
     t0 = time.time()
-    perf = {key: perf_metrics(nv) for key, nv in nv_results.items()}
+    rets_by_nv = {key: nv.pct_change().dropna() for key, nv in nv_results.items()}
+    perf = {key: perf_metrics(nv, rets=rets_by_nv[key]) for key, nv in nv_results.items()}
 
     yearly = {}
     rc = {}
@@ -179,13 +157,23 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
     ws = {}
     rc_tv = {}
 
-    # V3c / V3-B 无固定权重，跳过风险贡献分解
+    # Pre-compute regime labels once (reused by all 3 strategies)
+    regime_labels = None
+    if "hs300" in rets.columns and "bond_10y" in rets.columns:
+        qhs = rets["hs300"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
+        qbond = rets["bond_10y"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
+        regime_labels = pd.Series(index=qhs.index, dtype=object)
+        for d in qhs.index:
+            s = "股牛" if qhs[d] > 0 else "股熊"
+            b = "债牛" if qbond[d] > 0 else "债熊"
+            regime_labels[d] = f"{s}+{b}"
+
     for (p, tier), nv_s in nv_results.items():
         if ("V3-B" in p or "V3c" in p) and tier == "100% RP":
-            yearly[p] = yearly_returns(nv_s)
-            regime[p] = regime_returns(nv_s, rets)
+            yearly[p] = yearly_returns(nv_s, rets=rets_by_nv[(p, tier)])
+            regime[p] = regime_returns(nv_s, regime_labels=regime_labels)
             events[p] = event_returns(nv_s, STRESS_EVENTS)
-            rolling[p] = rolling_stats(nv_s)
+            rolling[p] = rolling_stats(nv_s, rets=rets_by_nv[(p, tier)])
 
     # 权重稳定性（使用 weight_history 中的动态权重）
     if weight_history:
@@ -197,7 +185,7 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
     d_sig = {}
     for (p, tier), nv_s in nv_results.items():
         if tier == "100% RP":
-            d_sig[p] = d_significance(nv_s)
+            d_sig[p] = d_significance(nv_s, rets=rets_by_nv[(p, tier)])
     return {
         "perf": perf, "yearly": yearly, "risk_contrib": rc,
         "regime": regime, "events": events, "rolling": rolling,
@@ -207,10 +195,11 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
     }
 
 
-def step_4_bootstrap(rets, nv_results=None):
+def step_4_bootstrap(rets, nv_results=None, weight_history=None):
     """Step 4: Block Bootstrap 蒙特卡洛模拟。
 
-    V3-B 用最近窗口逆波动率权重作动态权重代理。
+    用回测引擎输出的最后调仓权重作代理（复用 weight_history），
+    不使用截尾窗口重算权重，避免重复计算。
     """
     print("\n" + "─" * 60)
     print("Step 4/6: Block Bootstrap 蒙特卡洛（1000 次 × 5 年）")
@@ -218,25 +207,25 @@ def step_4_bootstrap(rets, nv_results=None):
     t0 = time.time()
 
     boot = {}
-
-    # V3c / V3-B: 用最近窗口权重作 Bootstrap 代理
     from .risk import hierarchical_rp_weights, inverse_vol_weights
     rp_buckets_boot_rp = {k: list(v) for k, v in V3B_RP_BUCKETS.items()}
+
     for (portfolio, tier), _nv in (nv_results or {}).items():
         if ("V3-B" in portfolio or "V3c" in portfolio) and tier == "100% RP":
-            boot_rets = rets
-            if "保守增强" in portfolio:
-                proxy_w = inverse_vol_weights(
-                    boot_rets[V3B_ASSETS].tail(20), window=20, max_w=0.25, min_w=RISK_PARITY_MIN_WEIGHT)
-            elif "V3c" in portfolio:
-                proxy_w = inverse_vol_weights(
-                    boot_rets[V3C_ASSETS].tail(60), window=60, max_w=0.30, min_w=0.03)
+            if weight_history is not None and portfolio in weight_history:
+                proxy_w = weight_history[portfolio].iloc[-1]
             else:
-                proxy_w = hierarchical_rp_weights(
-                    boot_rets[V3B_RP_ASSETS].tail(20), rp_buckets_boot_rp, 20,
-                    RISK_PARITY_MAX_WEIGHT, RISK_PARITY_MIN_WEIGHT,
-                    bucket_method="equal",
-                )
+                boot_rets = rets
+                if "保守增强" in portfolio:
+                    proxy_w = inverse_vol_weights(
+                        boot_rets[V3B_ASSETS].tail(20), window=20, max_w=0.25, min_w=0.02)
+                elif "V3c" in portfolio:
+                    proxy_w = inverse_vol_weights(
+                        boot_rets[V3C_ASSETS].tail(60), window=60, max_w=0.30, min_w=0.03)
+                else:
+                    proxy_w = hierarchical_rp_weights(
+                        boot_rets[V3B_RP_ASSETS].tail(20), rp_buckets_boot_rp, 20,
+                        0.20, 0.02, bucket_method="equal")
             rets_for_p = rets[list(proxy_w.index)]
             boot[portfolio] = block_bootstrap(proxy_w, rets_for_p)
 
@@ -410,7 +399,7 @@ def run_full_pipeline(excel: bool = True, markdown: bool = True,
     metrics = step_3_compute_metrics(nv_results, rets,
                                      weight_history=weight_history,
                                      signal_logs=signal_logs)
-    boot = step_4_bootstrap(rets, nv_results=nv_results)
+    boot = step_4_bootstrap(rets, nv_results=nv_results, weight_history=weight_history)
     step_5_print_reports(metrics, boot,
                          weight_history=weight_history,
                          signal_logs=signal_logs)

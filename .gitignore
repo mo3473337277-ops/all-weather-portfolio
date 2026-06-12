@@ -9,3 +9,6 @@ uv.lock
 output/*
 !output/.gitkeep
 .claude/worktrees/
+
+# 自动生成的缓存文件
+data/_ak_macro_gold_cache.csv

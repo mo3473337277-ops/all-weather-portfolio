@@ -1,9 +1,11 @@
 """数据加载层 - 从 data/ 读取 CSV，处理 30Y 国债合成，返回回测期价格表。"""
+import functools
 import pandas as pd
 import numpy as np
 from .config import DATA_DIR, BACKTEST_START, BACKTEST_END, BOND_30Y_AMP, BOND_30Y_SPREAD_CUTOFF, BOND_30Y_DURATION, SAFETY_DEDUCT
 
 
+@functools.lru_cache(maxsize=32)
 def load_series(name: str) -> pd.Series:
     """从 CSV 加载单资产收盘价时间序列（按日期升序）。
 
@@ -17,6 +19,7 @@ def load_series(name: str) -> pd.Series:
     return df.set_index("date")["close"].sort_index()
 
 
+@functools.lru_cache(maxsize=32)
 def _load_optional(name: str) -> pd.Series | None:
     """加载可选数据文件；不存在返回 None。"""
     path = DATA_DIR / f"{name}.csv"
@@ -40,17 +43,16 @@ def stitch_series(etf: pd.Series, proxy: pd.Series,
 
     # 合并日历：保留 proxy 的全部历史 + ETF 的交易日历
     combined_cal = proxy.index.union(etf.index).sort_values()
-    # 保存首日，在 pct_change/dropna 后会丢失
-    first_date = combined_cal[0]
     proxy = proxy.reindex(combined_cal).ffill()
 
-    # 安全扣减应用于 proxy 日收益率
-    daily_deduct = annual_deduct / 252.0
-    proxy_ret = proxy.pct_change().dropna()
-    proxy_ret = proxy_ret - daily_deduct
-    proxy = (1 + proxy_ret).cumprod()
-    # 补回首日（归一化从 1.0 起）
-    proxy = pd.concat([pd.Series(1.0, index=[first_date]), proxy]).sort_index()
+    # 安全扣减应用于 proxy 日收益率（无扣减时跳过 roundtrip）
+    if annual_deduct > 0:
+        first_date = combined_cal[0]
+        daily_deduct = annual_deduct / 252.0
+        proxy_ret = proxy.pct_change().dropna()
+        proxy_ret = proxy_ret - daily_deduct
+        proxy = (1 + proxy_ret).cumprod()
+        proxy = pd.concat([pd.Series(1.0, index=[first_date]), proxy]).sort_index()
 
     # 在 etf 起始日归一化
     stitch_date = etf.index.min()
@@ -189,6 +191,22 @@ def _load_bond_10y() -> pd.Series:
     return stitch_series(etf, proxy, annual_deduct=0.0)
 
 
+def _load_macro_gold_cached():
+    """宏观黄金ETF持仓数据，本地缓存避免每次 40s+ HTTP 请求。"""
+    cache_path = DATA_DIR / "_ak_macro_gold_cache.csv"
+    if cache_path.exists():
+        df = pd.read_csv(cache_path)
+        return df
+    try:
+        import akshare as ak
+        mg = ak.macro_cons_gold()
+        mg.to_csv(cache_path, index=False)
+        return mg
+    except Exception as e:
+        print(f"  [WARN] 宏观黄金数据获取失败: {e}")
+        return None
+
+
 def _load_gold_cny() -> pd.Series:
     """黄金 CNY：ETF (2013+) + 伦敦金×USDCNY (2006-2013) + ETF 持仓推算 (2005-2006)。"""
     etf = load_series("gold")
@@ -208,9 +226,8 @@ def _load_gold_cny() -> pd.Series:
     gold_cny.name = "close"
 
     # 2005-2006: 黄金 ETF 持仓数据推算金价（伦敦金数据从 2006-05 起）
-    try:
-        import akshare as ak
-        mg = ak.macro_cons_gold()
+    mg = _load_macro_gold_cached()
+    if mg is not None:
         mg["date"] = pd.to_datetime(mg["日期"])
         mg["proxy"] = mg["总价值"] / mg["总库存"]
         mg = mg.set_index("date").sort_index()
@@ -227,8 +244,6 @@ def _load_gold_cny() -> pd.Series:
                 mg_daily = mg_daily[mg_daily.index < gold_cny.index.min()]
                 if len(mg_daily) > 0:
                     gold_cny = pd.concat([mg_daily, gold_cny]).sort_index()
-    except Exception as e:
-        print(f"  [WARN] 宏观黄金数据合并失败，仅用 ETF 数据: {e}")
 
     if etf.empty:
         return gold_cny
@@ -314,8 +329,12 @@ def load_panel(include_wti: bool = False) -> pd.DataFrame:
                                 annual_deduct=SAFETY_DEDUCT["nonferr"])
     elif not nonferr_etf.empty:
         nonferr = nonferr_etf
-    else:
+    elif not nonferr_proxy.empty:
         nonferr = nonferr_proxy
+    else:
+        raise FileNotFoundError(
+            "nonferr 三级回退全部为空：需要 nonferr.csv（ETF）、"
+            "nonferr_idx.csv（指数）或 shfe_copper.csv（沪铜）至少一个")
 
     # 原油 WTI (USD×USDCNY)
     if include_wti:

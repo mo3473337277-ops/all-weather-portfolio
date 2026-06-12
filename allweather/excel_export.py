@@ -452,7 +452,7 @@ def save_excel_report(
     filename="report.xlsx",
     ws_results=None,
     rc_tv_results=None,
-    signal_logs=None,
+    signal_logs=None,  # 接受但忽略（common_args 兼容），Markdown 报告消费
     d_sig_results=None,
 ):
     """生成 output/report.xlsx 多 sheet 综合报告。"""

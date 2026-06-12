@@ -7,9 +7,9 @@ from .config import (
 )
 
 
-def perf_metrics(nv: pd.Series) -> dict:
+def perf_metrics(nv: pd.Series, rets: pd.Series | None = None) -> dict:
     """从净值序列算核心指标。"""
-    r = nv.pct_change().dropna()
+    r = rets if rets is not None else nv.pct_change().dropna()
     n = len(r)
     n_years = n / 252.0
     cum = nv.iloc[-1] - 1
@@ -43,9 +43,9 @@ def perf_metrics(nv: pd.Series) -> dict:
     }
 
 
-def yearly_returns(nv: pd.Series) -> pd.Series:
+def yearly_returns(nv: pd.Series, rets: pd.Series | None = None) -> pd.Series:
     """按自然年聚合收益率。"""
-    r = nv.pct_change().dropna()
+    r = rets if rets is not None else nv.pct_change().dropna()
     return r.groupby(r.index.year).apply(lambda x: (1 + x).prod() - 1)
 
 
@@ -171,16 +171,24 @@ def risk_contribution_time_varying(
     return result
 
 
-def regime_returns(nv: pd.Series, rets: pd.DataFrame) -> dict:
-    """4 宏观情景（股牛/熊 × 债牛/熊）平均季度收益。"""
-    # hardcoded "hs300"/"bond_10y" — 稳定列名，需要时再参数化
-    qhs = rets["hs300"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
-    qbond = rets["bond_10y"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
-    regime = pd.Series(index=qhs.index, dtype=object)
-    for d in qhs.index:
-        s = "股牛" if qhs[d] > 0 else "股熊"
-        b = "债牛" if qbond[d] > 0 else "债熊"
-        regime[d] = f"{s}+{b}"
+def regime_returns(nv: pd.Series, rets: pd.DataFrame = None,
+                   regime_labels: pd.Series = None) -> dict:
+    """4 宏观情景（股牛/熊 × 债牛/熊）平均季度收益。
+
+    regime_labels: 预计算的季度情景标签（复用避免重复计算）。
+    """
+    if regime_labels is None:
+        if rets is None or "hs300" not in rets.columns or "bond_10y" not in rets.columns:
+            return {}
+        qhs = rets["hs300"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
+        qbond = rets["bond_10y"].resample("QE").apply(lambda x: (1 + x).prod() - 1)
+        regime = pd.Series(index=qhs.index, dtype=object)
+        for d in qhs.index:
+            s = "股牛" if qhs[d] > 0 else "股熊"
+            b = "债牛" if qbond[d] > 0 else "债熊"
+            regime[d] = f"{s}+{b}"
+    else:
+        regime = regime_labels
 
     qret = nv.pct_change().dropna().resample("QE").apply(
         lambda x: (1 + x).prod() - 1)
@@ -195,11 +203,12 @@ def regime_returns(nv: pd.Series, rets: pd.DataFrame) -> dict:
     return out
 
 
-def rolling_stats(nv: pd.Series, window: int = 252) -> dict:
+def rolling_stats(nv: pd.Series, window: int = 252,
+                  rets: pd.Series | None = None) -> dict:
     """滚动 1 年期统计。"""
-    r = nv.pct_change().dropna()
-    rolling_ann = (1 + r).rolling(window).apply(
-        lambda x: x.prod() ** (252 / window) - 1, raw=True).dropna()
+    r = rets if rets is not None else nv.pct_change().dropna()
+    cum = (1 + r).cumprod()
+    rolling_ann = (cum / cum.shift(window) - 1).dropna()
     rolling_dd = (nv / nv.rolling(window).max() - 1).dropna()
     return {
         "ann_min": rolling_ann.min(),
@@ -212,14 +221,20 @@ def rolling_stats(nv: pd.Series, window: int = 252) -> dict:
     }
 
 
-def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int | None = None) -> dict:
+def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int | None = None,
+                   rets: pd.Series | None = None) -> dict:
     """D_excess 统计显著性 — 正态参数 Bootstrap。
 
     在收益正态分布的零假设下，模拟 n_sim 条路径，
     计算 D 的零分布。返回实际 D 在其中的百分位。
     """
-    r = nv.pct_change().dropna()
+    r = rets if rets is not None else nv.pct_change().dropna()
     n_days = len(r)
+    if n_days < 2:
+        return {"d_actual": float("nan"), "d_null_mean": float("nan"),
+                "d_null_std": float("nan"), "ci_95_low": float("nan"),
+                "ci_95_high": float("nan"), "percentile": float("nan"),
+                "significant_05": False}
     n_years = n_days / 252.0
     vol = r.std() * np.sqrt(252)
     cagr = nv.iloc[-1] ** (1 / n_years) - 1
@@ -233,15 +248,13 @@ def d_significance(nv: pd.Series, n_sim: int = 10000, seed: int | None = None) -
     rf_daily = RISK_FREE_ANNUAL / 252
 
     rng = np.random.RandomState(seed if seed is not None else BOOTSTRAP_SEED)
-    D_sim = np.zeros(n_sim)
-    for s in range(n_sim):
-        log_r = rng.normal(mu_log_daily, sigma_d, n_days)
-        sim_r = np.exp(log_r) - 1
-        sim_excess = sim_r - rf_daily
-        sim_arith = sim_excess.mean() * 252
-        sim_nv_end = (1 + sim_r).prod()
-        sim_cagr = sim_nv_end ** (1 / n_years) - 1
-        D_sim[s] = (sim_cagr - RISK_FREE_ANNUAL) - (sim_arith - vol**2 / 2)
+    log_r = rng.normal(mu_log_daily, sigma_d, (n_sim, n_days))
+    sim_r = np.exp(log_r) - 1
+    sim_excess = sim_r - rf_daily
+    sim_arith = sim_excess.mean(axis=1) * 252
+    sim_nv_end = (1 + sim_r).prod(axis=1)
+    sim_cagr = sim_nv_end ** (1 / n_years) - 1
+    D_sim = (sim_cagr - RISK_FREE_ANNUAL) - (sim_arith - vol**2 / 2)
 
     percentile = float((D_sim < d_actual).mean())
     return {

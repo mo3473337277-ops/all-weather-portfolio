@@ -68,11 +68,15 @@ def _fetch_etf_nav(code, start, end):
     # 用位置重命名，避免编码乱码导致 rename 失败
     df.columns = ["date", "unit_nav", "close", "daily_chg", "buy", "sell"]
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df["close"] = pd.to_numeric(df["close"], errors="coerce")
+    for col in ["close", "unit_nav"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
     # 验证 close 值是否合理（511130 净值约 100 元，其他 ETF 通常 1~200 元）
     close_mid = df["close"].median()
+    unit_mid = df["unit_nav"].median()
     if not (0.1 <= close_mid <= 5000):
         raise ValueError(f"{code}: close 中位数={close_mid}，可能列顺序已变更")
+    if not (0.1 <= unit_mid <= 5000):
+        raise ValueError(f"{code}: unit_nav 中位数={unit_mid}，可能列顺序已变更")
     df = df.dropna(subset=["date", "close"])
     return df[["date", "close"]].sort_values("date")
 

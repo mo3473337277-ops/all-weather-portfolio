@@ -1,14 +1,336 @@
-"""回测引擎 - 双触发再平衡 + 现金降杠杆 + nonferr 趋势过滤 + gold/hs300 抄底。"""
+"""回测引擎 - 统一版本（逆波动率/分层风险平价 + 趋势过滤 + 抄底）。"""
 import pandas as pd
 import numpy as np
 from .config import (
-    RISK_FREE_RATE,
+    RISK_FREE_RATE, RISK_PARITY_WINDOW, BUCKET_GROUPS,
     GOLD_DIP_THRESHOLD, GOLD_DIP_BOOST,
     HS300_DIP_THRESHOLD, HS300_DIP_BOOST,
     HS300_DIP_SMA, HS300_DIP_EXIT_RECOVERY,
     HS300_PB_ENTRY, HS300_PE_EXIT,
 )
+from .risk import inverse_vol_weights, hierarchical_rp_weights, hs300_dip_check, hs300_signal_snapshot, dynamic_cash_ratio
 
+
+
+def adjust_nav_for_cash(nv_base: pd.Series, cash_ratio: float, rf_daily: float = RISK_FREE_RATE) -> pd.Series:
+    """从 0% 现金的 NAV 推导任意现金比例的 NAV。"""
+    ratio = nv_base / nv_base.shift(1)
+    nv = nv_base.copy()
+    v = 1.0
+    nv.iloc[0] = v
+    for i in range(1, len(nv_base)):
+        factor = (1 - cash_ratio) * ratio.iloc[i] + cash_ratio * (1 + rf_daily)
+        v *= factor
+        nv.iloc[i] = v
+    return nv
+
+
+def _apply_trend_dip(w: np.ndarray, price_arr: np.ndarray, i: int,
+                     col_idx: dict, sma_params: dict, dip_params: dict,
+                     post_process_max_w: float | None) -> np.ndarray:
+    """Apply trend filters + dip logic + post-process on numpy weight array.
+    Modifies w in-place and returns it.
+    """
+    nf_idx = col_idx.get("nonferr", -1)
+    gold_idx = col_idx.get("gold", -1)
+    hs300_idx = col_idx.get("hs300", -1)
+    credit_idx = col_idx.get("credit", -1)
+    s = sma_params
+    d = dip_params
+
+    if s["nf_window"] > 0 and nf_idx >= 0 and w[nf_idx] > 0 and s["nf_sma"] is not None:
+        if price_arr[i, nf_idx] < s["nf_sma"] and credit_idx >= 0:
+            w[credit_idx] += w[nf_idx]
+            w[nf_idx] = 0.0
+
+    if s["eq_smas"] and credit_idx >= 0:
+        for eq, below in s["eq_smas"].items():
+            eq_idx = col_idx.get(eq)
+            if eq_idx is not None and w[eq_idx] > 0 and below:
+                w[credit_idx] += w[eq_idx]
+                w[eq_idx] = 0.0
+
+    if d["gold_trend"] and gold_idx >= 0 and w[gold_idx] > 0 and s["au_sma"] is not None:
+        if price_arr[i, gold_idx] < s["au_sma"] and credit_idx >= 0:
+            w[credit_idx] += w[gold_idx]
+            w[gold_idx] = 0.0
+
+    if d["gold_dip_threshold"] is not None and gold_idx >= 0 and w[gold_idx] > 0:
+        gold_dd = price_arr[i, gold_idx] / d["gold_peak"] - 1
+        if gold_dd <= -d["gold_dip_threshold"]:
+            if not d["gold_boosted"]:
+                boost = w[gold_idx] * d["gold_dip_boost"]
+                if credit_idx >= 0 and w[credit_idx] >= boost:
+                    w[gold_idx] += boost
+                    w[credit_idx] -= boost
+                    d["gold_boosted_flag"] = True
+                    if d["gold_dip_cap"] is not None and w[gold_idx] > d["gold_dip_cap"]:
+                        excess = w[gold_idx] - d["gold_dip_cap"]
+                        w[gold_idx] = d["gold_dip_cap"]
+                        if credit_idx >= 0:
+                            w[credit_idx] += excess
+        else:
+            d["gold_boosted_flag"] = False
+
+    if d["hs300_value_dip"] and hs300_idx >= 0 and w[hs300_idx] > 0:
+        if d["hs300_boost"] is not None:
+            boost = w[hs300_idx] * (d["hs300_boost"] - 1)
+            if credit_idx >= 0 and w[credit_idx] >= boost:
+                w[hs300_idx] += boost
+                w[credit_idx] -= boost
+
+    if post_process_max_w is not None:
+        orig_sum = w.sum()
+        w = np.clip(w, None, post_process_max_w)
+        w = w / w.sum() * orig_sum if w.sum() > 0 else w
+
+    return w
+
+
+def backtest(
+    rets: pd.DataFrame,
+    cash_ratio: float = 0.0,
+    rf_daily: float = RISK_FREE_RATE,
+    weighting_method: str = "inverse_vol",
+    iv_window: int = 60,
+    rp_window: int = RISK_PARITY_WINDOW,
+    bucket_method: str = "equal",
+    max_w: float = 0.30,
+    min_w: float = 0.03,
+    rp_buckets: dict | None = None,
+    nonferr_trend_window: int = 75,
+    gold_trend_filter: bool = False,
+    gold_trend_window: int = 75,
+    gold_dip_threshold: float | None = GOLD_DIP_THRESHOLD,
+    gold_dip_boost: float = GOLD_DIP_BOOST,
+    gold_dip_cap: float | None = None,
+    hs300_dip_threshold: float | None = HS300_DIP_THRESHOLD,
+    hs300_dip_boost: float = HS300_DIP_BOOST,
+    hs300_dip_sma: int = HS300_DIP_SMA,
+    hs300_dip_exit_recovery: float = HS300_DIP_EXIT_RECOVERY,
+    hs300_value_dip: bool = False,
+    hs300_pb_entry: float = HS300_PB_ENTRY,
+    hs300_pe_exit: float = HS300_PE_EXIT,
+    equity_trend_assets: list | None = None,
+    equity_trend_window: int = 120,
+    equity_trend_windows: dict | None = None,
+    assets: list | None = None,
+    dynamic_cash: bool = False,
+    track_weights: bool = False,
+    track_signals: bool = False,
+    signal_label: str = "",
+    post_process_max_w: float | None = None,
+    hs300_pb_data: pd.Series | None = None,
+    hs300_pe_data: pd.Series | None = None,
+    hs300_pb_pct: pd.Series | None = None,
+    hs300_pe_pct: pd.Series | None = None,
+    track_dynamic_nav: bool = False,
+) -> tuple:
+    """统一回测引擎 — 逆波动率/分层风险平价 + 趋势过滤 + 抄底。
+
+    When track_dynamic_nav=True, returns (nv, nv_dynamic, n_rebal, weight_df, signal_df).
+    """
+    from .data import load_hs300_pb, load_hs300_pe
+
+    if assets is not None:
+        rets_rp = rets[assets]
+    else:
+        rets_rp = rets
+    cols = list(rets_rp.columns)
+    n_assets = len(cols)
+
+    # --- Pre-compute numpy arrays for hot path ---
+    rets_arr = rets_rp.values  # (n_days, n_assets)
+    prices = (1 + rets_rp).cumprod()
+    price_arr = prices.values
+    col_idx = {c: i for i, c in enumerate(cols)}
+    idx_cols = [col_idx[c] for c in cols]  # ordered list
+
+    nv = pd.Series(index=rets_rp.index, dtype=float)
+    n_rebal = 0
+    nonferr_idx = col_idx.get("nonferr", -1)
+    gold_idx = col_idx.get("gold", -1)
+    hs300_idx = col_idx.get("hs300", -1)
+    credit_idx = col_idx.get("credit", -1)
+    gold_peak = float(price_arr[0, gold_idx]) if gold_idx >= 0 else 1.0
+    gold_boosted = False
+    hs300_peak = float(price_arr[0, hs300_idx]) if hs300_idx >= 0 else 1.0
+    pb_data = hs300_pb_data if hs300_pb_data is not None else (load_hs300_pb() if hs300_value_dip else None)
+    pe_data = hs300_pe_data if hs300_pe_data is not None else (load_hs300_pe() if hs300_value_dip else None)
+    hs300_boosted = False
+
+    if track_dynamic_nav:
+        nv_dyn = pd.Series(index=rets_rp.index, dtype=float)
+
+    lookback = rp_window if weighting_method == "hierarchical_rp" else iv_window
+    if weighting_method == "hierarchical_rp":
+        buckets = {k: list(v) for k, v in (rp_buckets or BUCKET_GROUPS).items()}
+        initial_w = hierarchical_rp_weights(rets_rp.iloc[:lookback], buckets, rp_window, max_w, min_w, bucket_method=bucket_method)
+    else:
+        initial_w = inverse_vol_weights(rets_rp.iloc[:lookback], window=iv_window, max_w=max_w, min_w=min_w)
+
+    # h sums to (1 - cash_ratio), numpy array for fast dot product
+    h = initial_w.values * (1 - cash_ratio)
+    v = 1.0
+    eff_cash = cash_ratio
+    weight_log = {} if track_weights else None
+    signal_log = [] if track_signals else None
+
+    if track_dynamic_nav:
+        h_dyn = h.copy()
+        eff_cash_dyn = cash_ratio
+        v_dyn = 1.0
+
+    for i, d in enumerate(rets_rp.index):
+        if i == 0:
+            nv.loc[d] = 1.0
+            if track_dynamic_nav:
+                nv_dyn.loc[d] = 1.0
+            continue
+
+        # --- Daily return via numpy dot ---
+        daily_ret = np.dot(h, rets_arr[i])
+        v *= 1 + daily_ret + eff_cash * rf_daily
+        nv.loc[d] = v
+
+        if track_dynamic_nav:
+            daily_ret_dyn = np.dot(h_dyn, rets_arr[i])
+            v_dyn *= 1 + daily_ret_dyn + eff_cash_dyn * rf_daily
+            nv_dyn.loc[d] = v_dyn
+
+        # --- Drift ---
+        h = h * (1 + rets_arr[i])
+        s = h.sum()
+        if s > 0:
+            h = h / s * (1 - eff_cash)
+
+        if track_dynamic_nav:
+            h_dyn = h_dyn * (1 + rets_arr[i])
+            s_dyn = h_dyn.sum()
+            if s_dyn > 0:
+                h_dyn = h_dyn / s_dyn * (1 - eff_cash_dyn)
+
+        # --- Peak tracking ---
+        if gold_idx >= 0:
+            if price_arr[i, gold_idx] > gold_peak:
+                gold_peak = float(price_arr[i, gold_idx])
+        if hs300_idx >= 0:
+            if price_arr[i, hs300_idx] > hs300_peak:
+                hs300_peak = float(price_arr[i, hs300_idx])
+
+        # --- Rebalance ---
+        if d.month != rets_rp.index[i - 1].month and i > lookback:
+            window_df = rets_rp.iloc[max(0, i - lookback):i]
+
+            if weighting_method == "hierarchical_rp":
+                buckets = {k: list(v) for k, v in (rp_buckets or BUCKET_GROUPS).items()}
+                new_w = hierarchical_rp_weights(window_df, buckets, rp_window, max_w, min_w, bucket_method=bucket_method)
+            else:
+                new_w = inverse_vol_weights(window_df, window=iv_window, max_w=max_w, min_w=min_w)
+            new_w_arr = new_w.values  # sums to ~1 (normalized)
+
+            # --- Compute SMA conditions once (numpy) ---
+            nf_sma = None
+            au_sma = None
+            eq_smas = {}
+            if nonferr_trend_window > 0 and nonferr_idx >= 0 and i > nonferr_trend_window:
+                nf_sma = float(price_arr[max(0, i - nonferr_trend_window):i, nonferr_idx].mean())
+            if gold_trend_filter and gold_idx >= 0 and i > gold_trend_window:
+                au_sma = float(price_arr[max(0, i - gold_trend_window):i, gold_idx].mean())
+            if equity_trend_assets:
+                for eq in equity_trend_assets:
+                    eq_idx = col_idx.get(eq)
+                    if eq_idx is not None:
+                        wdw = equity_trend_windows.get(eq, equity_trend_window) if equity_trend_windows else equity_trend_window
+                        if i > wdw:
+                            eq_smas[eq] = float(price_arr[max(0, i - wdw):i, eq_idx].mean())
+
+            # --- Compute HS300 dip condition once ---
+            hs300_boost = None
+            if hs300_value_dip and hs300_idx >= 0 and i > hs300_dip_sma:
+                hs300_boosted, hs300_boost = hs300_dip_check(
+                    pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
+                    hs300_dip_threshold, hs300_dip_sma, hs300_dip_exit_recovery,
+                    hs300_pb_entry, hs300_pe_exit, hs300_dip_boost,
+                    pb_pct_series=hs300_pb_pct, pe_pct_series=hs300_pe_pct,
+                )
+
+            # --- Shared SMA/dip params for filter function ---
+            sma_params = {"nf_window": nonferr_trend_window, "nf_sma": nf_sma,
+                          "au_sma": au_sma, "eq_smas": eq_smas}
+            _gb_before = gold_boosted
+
+            # --- Base weights ---
+            w = new_w_arr * (1 - cash_ratio)
+            dip_base = {
+                "gold_trend": gold_trend_filter,
+                "gold_dip_threshold": gold_dip_threshold,
+                "gold_dip_boost": gold_dip_boost,
+                "gold_dip_cap": gold_dip_cap,
+                "gold_peak": gold_peak,
+                "gold_boosted": _gb_before,
+                "gold_boosted_flag": False,
+                "hs300_value_dip": hs300_value_dip,
+                "hs300_boost": hs300_boost,
+            }
+            w = _apply_trend_dip(w, price_arr, i, col_idx, sma_params, dip_base, post_process_max_w)
+            gold_boosted = dip_base["gold_boosted_flag"]
+            eff_cash = 1.0 - w.sum()
+            h = w
+
+            # --- Dynamic variant (if tracking) ---
+            if track_dynamic_nav:
+                dyn_cr = dynamic_cash_ratio(prices["hs300"], i) if hs300_idx >= 0 else cash_ratio
+                dip_dyn = {
+                    "gold_trend": gold_trend_filter,
+                    "gold_dip_threshold": gold_dip_threshold,
+                    "gold_dip_boost": gold_dip_boost,
+                    "gold_dip_cap": gold_dip_cap,
+                    "gold_peak": gold_peak,
+                    "gold_boosted": _gb_before,
+                    "gold_boosted_flag": False,
+                    "hs300_value_dip": hs300_value_dip,
+                    "hs300_boost": hs300_boost,
+                }
+                w_dyn = new_w_arr * (1 - dyn_cr)
+                w_dyn = _apply_trend_dip(w_dyn, price_arr, i, col_idx, sma_params, dip_dyn, post_process_max_w)
+                eff_cash_dyn = 1.0 - w_dyn.sum()
+                h_dyn = w_dyn
+
+            # --- Signal logging ---
+            if track_signals:
+                entry = {'date': d, 'label': signal_label}
+                if nonferr_trend_window > 0 and nonferr_idx >= 0:
+                    entry['nonferr_below_sma'] = bool(price_arr[i, nonferr_idx] < nf_sma) if nf_sma is not None else False
+                    entry['nonferr_filtered'] = w[nonferr_idx] == 0
+                if gold_trend_filter and gold_idx >= 0:
+                    entry['gold_below_sma'] = bool(price_arr[i, gold_idx] < au_sma) if au_sma is not None else False
+                    entry['gold_filtered'] = w[gold_idx] == 0
+                if equity_trend_assets:
+                    for eq in equity_trend_assets:
+                        eq_idx = col_idx.get(eq)
+                        if eq_idx is not None:
+                            entry[f'{eq}_below_sma'] = bool(price_arr[i, eq_idx] < eq_smas.get(eq, -np.inf))
+                            entry[f'{eq}_filtered'] = w[eq_idx] == 0
+                if gold_dip_threshold is not None and gold_idx >= 0:
+                    gold_dd = float(price_arr[i, gold_idx] / gold_peak - 1)
+                    entry['gold_dd_pct'] = round(gold_dd, 4)
+                    entry['gold_dip_active'] = gold_dd <= -gold_dip_threshold and w[gold_idx] > 0
+                if hs300_idx >= 0:
+                    snap = hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, hs300_dip_boost,
+                                                  pb_pct_series=hs300_pb_pct, pe_pct_series=hs300_pe_pct)
+                    entry.update(snap)
+                signal_log.append(entry)
+
+            n_rebal += 1
+            if track_weights:
+                weight_log[d] = pd.Series(w, index=cols)
+
+    weight_df = pd.DataFrame(weight_log).T if track_weights else None
+    signal_df = pd.DataFrame(signal_log) if track_signals else None
+    if track_dynamic_nav:
+        return nv, nv_dyn, n_rebal, weight_df, signal_df
+    return nv, n_rebal, weight_df, signal_df
 
 
 def backtest_iv(
@@ -40,179 +362,34 @@ def backtest_iv(
     equity_trend_window: int = 120,
     equity_trend_windows: dict | None = None,
     post_process_max_w: float | None = None,
+    hs300_pb_data: pd.Series | None = None,
+    hs300_pe_data: pd.Series | None = None,
+    hs300_pb_pct: pd.Series | None = None,
+    hs300_pe_pct: pd.Series | None = None,
+    track_dynamic_nav: bool = False,
 ):
-    """逆波动率加权 + 月度再平衡 + nonferr 趋势过滤 + gold/hs300 抄底。
-
-    每月按过去 iv_window 日逆波动率重新计算权重，简单直接，无需分桶。
-    assets 为空则用全部列。
-    track_weights=True 时额外返回权重历史 DataFrame（调仓日 × 资产）。
-    """
-    from .risk import inverse_vol_weights, hs300_dip_check, hs300_signal_snapshot, dynamic_cash_ratio
-    from .data import load_hs300_pb, load_hs300_pe
-
-    if assets is not None:
-        rets = rets[assets]
-    cols = list(rets.columns)
-    nv = pd.Series(index=rets.index, dtype=float)
-    n_rebal = 0
-
-    prices = (1 + rets).cumprod()
-    credit_idx = cols.index("credit") if "credit" in cols else -1
-    nonferr_idx = cols.index("nonferr") if "nonferr" in cols else -1
-    gold_idx = cols.index("gold") if "gold" in cols else -1
-    hs300_idx = cols.index("hs300") if "hs300" in cols else -1
-
-    gold_peak = prices.iloc[0]["gold"] if gold_idx >= 0 else 1.0
-    gold_boosted = False
-    hs300_peak = prices.iloc[0]["hs300"] if hs300_idx >= 0 else 1.0
-
-    pb_data = load_hs300_pb() if hs300_value_dip else None
-    pe_data = load_hs300_pe() if hs300_value_dip else None
-    hs300_boosted = False
-
-    w = inverse_vol_weights(rets.iloc[:max(iv_window, len(rets))], window=iv_window, max_w=max_w, min_w=min_w)
-    target = w.values * (1 - cash_ratio)
-    h = pd.Series(target, index=cols)
-    v = 1.0
-    eff_cash = cash_ratio
-    weight_log = {} if track_weights else None
-    signal_log = [] if track_signals else None
-
-    for i, d in enumerate(rets.index):
-        if i == 0:
-            nv.loc[d] = 1.0
-            continue
-
-        v *= 1 + (h * rets.loc[d, cols]).sum() + eff_cash * rf_daily
-        nv.loc[d] = v
-
-        h = h * (1 + rets.loc[d, cols])
-        s = h.sum()
-        if s > 0:
-            h = h / s * (1 - eff_cash)
-
-        if gold_idx >= 0:
-            curr_au = prices.iloc[i]["gold"]
-            if curr_au > gold_peak:
-                gold_peak = curr_au
-        if hs300_idx >= 0:
-            curr_hs = prices.iloc[i]["hs300"]
-            if curr_hs > hs300_peak:
-                hs300_peak = curr_hs
-
-        if d.month != rets.index[i - 1].month and i > iv_window:
-            window = rets.iloc[max(0, i - iv_window):i]
-            new_w = inverse_vol_weights(window, window=iv_window, max_w=max_w, min_w=min_w)
-            eff_cr = cash_ratio
-            if dynamic_cash and hs300_idx >= 0:
-                eff_cr = dynamic_cash_ratio(prices["hs300"], i)
-            w = pd.Series(new_w.values * (1 - eff_cr), index=cols)
-
-            if nonferr_trend_window > 0 and nonferr_idx >= 0 and w.get("nonferr", 0) > 0:
-                curr_nf = prices.iloc[i]["nonferr"]
-                nf_sma = prices["nonferr"].iloc[max(0, i - nonferr_trend_window):i].mean()
-                if curr_nf < nf_sma:
-                    w["credit"] = w.get("credit", 0) + w["nonferr"]
-                    w["nonferr"] = 0.0
-
-            # --- Equity trend filter: 资产跌破SMA → 清仓转入 credit ---
-            if equity_trend_assets:
-                for eq in equity_trend_assets:
-                    if eq in w.index and w.get(eq, 0) > 0:
-                        curr = prices.iloc[i][eq]
-                        wdw = equity_trend_windows.get(eq, equity_trend_window) if equity_trend_windows else equity_trend_window
-                        if i > wdw:
-                            sma = prices[eq].iloc[max(0, i - wdw):i].mean()
-                            if curr < sma:
-                                w["credit"] = w.get("credit", 0) + w[eq]
-                                w[eq] = 0.0
-
-            if gold_trend_filter and gold_idx >= 0 and w.get("gold", 0) > 0:
-                curr_au = prices.iloc[i]["gold"]
-                au_sma = prices["gold"].iloc[max(0, i - gold_trend_window):i].mean()
-                if curr_au < au_sma:
-                    w["credit"] = w.get("credit", 0) + w["gold"]
-                    w["gold"] = 0.0
-
-            if gold_dip_threshold is not None and gold_idx >= 0 and w.get("gold", 0) > 0:
-                gold_dd = prices.iloc[i]["gold"] / gold_peak - 1
-                if gold_dd <= -gold_dip_threshold:
-                    if not gold_boosted:
-                        boost = w["gold"] * gold_dip_boost
-                        if w.get("credit", 0) >= boost:
-                            w["gold"] += boost
-                            w["credit"] -= boost
-                            gold_boosted = True
-                            if gold_dip_cap is not None and w["gold"] > gold_dip_cap:
-                                excess = w["gold"] - gold_dip_cap
-                                w["gold"] = gold_dip_cap
-                                w["credit"] += excess
-                else:
-                    gold_boosted = False
-
-            # --- hs300 抄底：价格回撤 + 基本面确认 同时满足 ---
-            if hs300_value_dip and hs300_idx >= 0 and w.get("hs300", 0) > 0 and i > hs300_dip_sma:
-                hs300_boosted, hs300_boost = hs300_dip_check(
-                    pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted,
-                    hs300_dip_threshold, hs300_dip_sma, hs300_dip_exit_recovery,
-                    hs300_pb_entry, hs300_pe_exit, hs300_dip_boost,
-                )
-                if hs300_boost is not None:
-                    boost = w["hs300"] * (hs300_boost - 1)
-                    if w.get("credit", 0) >= boost:
-                        w["hs300"] += boost
-                        w["credit"] -= boost
-
-            # --- 信号触发日志（每月调仓日记录全部风控状态）---
-            if track_signals:
-                entry = {'date': d, 'label': signal_label}
-                # Nonferr 趋势过滤
-                if nonferr_trend_window > 0 and nonferr_idx >= 0:
-                    nf_sma = prices["nonferr"].iloc[max(0, i - nonferr_trend_window):i].mean()
-                    entry['nonferr_below_sma'] = bool(prices.iloc[i]["nonferr"] < nf_sma)
-                    entry['nonferr_filtered'] = w.get("nonferr", 0) == 0
-                # Gold 趋势过滤
-                if gold_trend_filter and gold_idx >= 0:
-                    au_sma = prices["gold"].iloc[max(0, i - gold_trend_window):i].mean()
-                    entry['gold_below_sma'] = bool(prices.iloc[i]["gold"] < au_sma)
-                    entry['gold_filtered'] = w.get("gold", 0) == 0
-                # SP500 / WTI 趋势过滤
-                if equity_trend_assets:
-                    for eq in equity_trend_assets:
-                        if eq in prices.columns:
-                            wdw = equity_trend_windows.get(eq, equity_trend_window) if equity_trend_windows else equity_trend_window
-                            eq_sma = prices[eq].iloc[max(0, i - wdw):i].mean()
-                            entry[f'{eq}_below_sma'] = bool(prices.iloc[i][eq] < eq_sma)
-                            entry[f'{eq}_filtered'] = w.get(eq, 0) == 0
-                # Gold 抄底
-                if gold_dip_threshold is not None and gold_idx >= 0:
-                    gold_dd = float(prices.iloc[i]["gold"] / gold_peak - 1)
-                    entry['gold_dd_pct'] = round(gold_dd, 4)
-                    entry['gold_dip_active'] = gold_dd <= -gold_dip_threshold and w.get("gold", 0) > 0
-                # HS300 AND 抄底
-                if hs300_idx >= 0:
-                    snap = hs300_signal_snapshot(pb_data, pe_data, prices, d, i, hs300_peak, hs300_boosted, hs300_dip_boost)
-                    entry.update(snap)
-                signal_log.append(entry)
-
-            if post_process_max_w is not None:
-                orig_sum = w.sum()
-                w = w.clip(upper=post_process_max_w)
-                w = w / w.sum() * orig_sum
-
-            eff_cash = 1.0 - w.sum()
-
-            h = w
-            n_rebal += 1
-            if track_weights:
-                weight_log[d] = w.copy()
-
-    if track_weights and track_signals:
-        return nv, n_rebal, pd.DataFrame(weight_log).T, pd.DataFrame(signal_log)
-    if track_weights:
-        return nv, n_rebal, pd.DataFrame(weight_log).T
-    if track_signals:
-        return nv, n_rebal, pd.DataFrame(signal_log)
-    return nv, n_rebal
+    """逆波动率加权 — 委托给 backtest()。"""
+    return backtest(
+        rets, cash_ratio=cash_ratio, rf_daily=rf_daily,
+        weighting_method="inverse_vol", iv_window=iv_window,
+        max_w=max_w, min_w=min_w,
+        nonferr_trend_window=nonferr_trend_window,
+        gold_trend_filter=gold_trend_filter, gold_trend_window=gold_trend_window,
+        gold_dip_threshold=gold_dip_threshold, gold_dip_boost=gold_dip_boost,
+        gold_dip_cap=gold_dip_cap,
+        hs300_dip_threshold=hs300_dip_threshold, hs300_dip_boost=hs300_dip_boost,
+        hs300_dip_sma=hs300_dip_sma, hs300_dip_exit_recovery=hs300_dip_exit_recovery,
+        hs300_value_dip=hs300_value_dip, hs300_pb_entry=hs300_pb_entry,
+        hs300_pe_exit=hs300_pe_exit,
+        equity_trend_assets=equity_trend_assets,
+        equity_trend_window=equity_trend_window,
+        equity_trend_windows=equity_trend_windows,
+        assets=assets, dynamic_cash=dynamic_cash,
+        track_weights=track_weights, track_signals=track_signals,
+        signal_label=signal_label, post_process_max_w=post_process_max_w,
+        hs300_pb_data=hs300_pb_data, hs300_pe_data=hs300_pe_data,
+        hs300_pb_pct=hs300_pb_pct, hs300_pe_pct=hs300_pe_pct,
+        track_dynamic_nav=track_dynamic_nav,
+    )
 
 

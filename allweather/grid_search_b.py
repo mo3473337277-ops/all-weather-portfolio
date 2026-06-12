@@ -35,7 +35,7 @@ def run_grid_search():
     results = []
     t0 = time.time()
     for win, max_w, bm in itertools.product(windows, max_ws, bucket_methods):
-        nv, n_rebal = backtest_b(
+        nv, n_rebal, _, _ = backtest_b(
             rets, cash_ratio=0.0, rp_window=win,
             bucket_method=bm, max_w=max_w, min_w=RISK_PARITY_MIN_WEIGHT,
         )

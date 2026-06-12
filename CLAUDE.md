@@ -73,6 +73,23 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 **最容易漏**：README.md 的策略速查表和参数表、docs/index.html 里的年度/事件/Bootstrap 表。
 
+## 12 条行为原则
+
+| # | 原文 | 中文 | 含义 |
+|---|------|------|------|
+| 1 | **Think Before Coding** | **先想再写** | 不沉默假设。说出假设。摆出取舍。先问别猜。有更简方案时反驳。 |
+| 2 | **Simplicity First** | **简单至上** | 解决问题的最短代码。不为"未来可能"造抽象。一个用例不配接口。资深工程师会说过度设计？那就简化。 |
+| 3 | **Surgical Changes** | **手术刀式修改** | 只改必须改的。不"顺手"改相邻代码、注释、格式。不重构没坏的东西。匹配已有风格。 |
+| 4 | **Goal-Driven Execution** | **目标驱动执行** | 定义验收标准。循环直到验证通过。不要告诉我执行步骤，告诉我成功长什么样，让过程迭代。 |
+| 5 | **Don't route decisions through the model** | **决策用代码，不用 token** | 能确定性的决定就写代码。不要把决策路由给模型消耗 token。 |
+| 6 | **Hard token budgets** | **硬性 token 上限** | 每任务设 token 上限。到了就停。"把这一个做完就歇" = 你会螺旋。 |
+| 7 | **Surface conflicts, don't average** | **暴露冲突，不取平均** | 代码库有分歧时选一个。不要试图同时满足两种模式——那只会制造混乱。 |
+| 8 | **Read before you write** | **先读再写** | 写新文件前先读相邻文件。理解既有模式。你没读过的代码不可能写出兼容它的代码。 |
+| 9 | **Tests are not optional, but not the goal** | **测试不可缺，但不是终点** | 写有意义的测试。因错而通过的测试不如没有——它制造虚假信心。 |
+| 10 | **Long-running operations need checkpoints** | **长任务要设检查点** | 每步后检查点。继续前验证中间状态。一步走错不该抹掉全部进度。 |
+| 11 | **Convention beats novelty** | **惯例战胜新意** | 匹配代码库既有模式。就算你的方式更好，两种模式共存比一种坏模式更糟。 |
+| 12 | **Fail visibly, not silently** | **失败要响亮** | 出问题就大声说。暴露跳过的记录、失败的断言、部分结果。沉默隐藏 bug。 |
+
 ## Git 规则
 
 - 单人项目，直接推 main。`git add -A && git commit -m "..." && git push`
@@ -118,8 +135,8 @@ allweather/
   config.py         所有常量
   data.py           加载 + 合成 30Y 国债
   fetch.py          通过 akshare 拉数据
-  backtest.py       V3c 引擎
-  strategy_b.py     V3-B 引擎
+  backtest.py       统一回测引擎（backtest / backtest_iv）
+  strategy_b.py     backtest_b 向后兼容包装
   risk.py           逆波动率 / 分层风险平价 / 趋势过滤（部分仅库函数）
   stats.py          指标 / Bootstrap / D_excess
   reports.py        控制台输出
@@ -136,9 +153,9 @@ allweather/
 
 | 策略 | 引擎 | 核心逻辑 | 资产数 | 特点 |
 |------|------|----------|--------|------|
-| V3c 多元 | `backtest.py::backtest_iv` | 逆波动率 60d (max 0.30) + nonferr 75d + HS300 AND抄底 | 6 | 最简，每月调仓 |
-| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 | 6 (无 bond_10y) | CAGR 最高（10.31%），三重风控 |
-| V3-B 保守增强(20d) | `strategy_b.py::backtest_b` | 逆波动率 20d (max 0.25) + nonferr 75d + HS300 AND抄底 | 7 (含 bond_10y) | Sharpe 最高 |
+| V3c 多元 | `backtest.py::backtest_iv` → 统一`backtest()` | 逆波动率 60d (max 0.30) + nonferr 75d + HS300 AND抄底 | 6 | 最简，每月调仓 |
+| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 | 6 (无 bond_10y) | CAGR 最高（10.31%），三重风控 |
+| V3-B 保守增强(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 逆波动率 20d (max 0.25) + nonferr 75d + HS300 AND抄底 | 7 (含 bond_10y) | Sharpe 最高 |
 
 × 3 现金档（含动态）：100% RP / 85% RP / 70% RP / 动态。div_idx 和 soymeal 已于 2026-05-27 移除。
 wti（原油 501018）已集成数据管道和引擎，因 QDII 限购暂不可执行。
