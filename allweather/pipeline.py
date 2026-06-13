@@ -26,7 +26,7 @@ V3B_RP_BUCKETS = {
     "增长↑":   ["hs300", "us_sp500"],
     "收益垫":  ["credit"],
     "增长↓":   ["bond_30y"],
-    "通胀↑":   ["gold", "nonferr"],
+    "通胀↑":   ["gold", "nonferr", "wti", "copper"],
 }
 V3B_RP_ASSETS = [a for assets in V3B_RP_BUCKETS.values() for a in assets]
 from . import reports

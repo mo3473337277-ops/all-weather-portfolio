@@ -36,7 +36,9 @@ TARGETS = {
     "shfe_copper":  ("sina_fut", "CU0"),   # 沪铜连续 (2005+)
     "usdcny":       ("fx_boc", "USDCNY"),  # 美元人民币汇率 (2008+)
     "sp500_idx":    ("sp500", None),       # S&P500 指数 USD (2008+)
-    "wti":          ("foreign_fut", "CL"), # WTI 原油连续合约 USD (1996+)
+    "wti":          ("sina_fut", "SC0"),   # SC原油期货连续 (2018+), 人民币计价, 无QDII限制
+    "wti_usd":      ("foreign_fut", "CL"), # WTI 原油连续 USD (1996+) — SC0前历史proxy
+    "copper":       ("sina_fut", "CU0"),   # 沪铜连续 (2005+) — 独立于159980的纯铜暴露
 }
 
 

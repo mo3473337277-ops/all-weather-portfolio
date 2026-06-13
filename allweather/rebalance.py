@@ -26,22 +26,22 @@ from .config import (
 from .risk import inverse_vol_weights, hierarchical_rp_weights
 
 # === 策略定义 ===
-V3C_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr"]
-V3B_RP_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr"]
-V3B_CON_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "nonferr"]
+V3C_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
+V3B_RP_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
+V3B_CON_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "nonferr", "wti", "copper"]
 
 V3B_RP_BUCKETS = {
     "增长↑": ["hs300", "us_sp500"],
     "收益垫": ["credit"],
     "增长↓": ["bond_30y"],
-    "通胀↑": ["gold", "nonferr"],
+    "通胀↑": ["gold", "nonferr", "wti", "copper"],
 }
 V3B_CON_BUCKETS = {
     "增长↑": ["hs300", "us_sp500"],
     "收益垫": ["credit"],
     "增长↓10Y": ["bond_10y"],
     "增长↓30Y": ["bond_30y"],
-    "通胀↑": ["gold", "nonferr"],
+    "通胀↑": ["gold", "nonferr", "wti", "copper"],
 }
 
 STRATEGIES = {
@@ -484,9 +484,9 @@ def _auto_fetch_if_stale(max_calendar_days=7):
 def display_strategy_summary():
     """三策略概要对比（每策略一行）。"""
     rows = [
-        ("V3c 多元", "逆波动率 60d", "7.95%", "1.59", "-7.01%", "最简执行"),
-        ("V3-B 风险平价(20d)", "HRP 4桶", "10.20%", "1.40", "-9.48%", "CAGR最高"),
-        ("V3-B 保守增强(20d)", "逆波动率 20d", "6.72%", "1.67", "-6.40%", "Sharpe最高"),
+        ("V3c 多元", "逆波动率 60d", "8.96%", "1.21", "-9.17%", "+wti/copper"),
+        ("V3-B 风险平价(20d)", "HRP 4桶", "9.48%", "1.21", "-10.04%", "CAGR最高"),
+        ("V3-B 保守增强(20d)", "逆波动率 20d", "7.68%", "1.32", "-6.08%", "Sharpe最高"),
     ]
     print(f"\n{LINE}")
     print("  三策略概要")

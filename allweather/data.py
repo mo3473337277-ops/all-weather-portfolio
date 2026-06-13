@@ -293,7 +293,30 @@ def _load_with_index(etf_name: str, idx_name: str, annual_deduct: float = 0.0) -
     return stitch_series(etf, proxy, annual_deduct=annual_deduct)
 
 
-def load_panel(include_wti: bool = False) -> pd.DataFrame:
+def _load_copper() -> pd.Series:
+    """沪铜连续（CU0）独立加载，用作策略独立资产。
+
+    扣减展期成本 0.3%/年（SAFETY_DEDUCT.copper）。
+    """
+    copper = load_series("copper")
+    if copper.empty:
+        # 回退：用 shfe_copper（与 nonferr 共享同一 CSV）
+        copper = load_series("shfe_copper")
+    if copper.empty:
+        raise FileNotFoundError("copper / shfe_copper 数据不可用")
+
+    annual_deduct = SAFETY_DEDUCT.get("copper", 0.0)
+    if annual_deduct > 0:
+        daily_deduct = annual_deduct / 252.0
+        ret = copper.pct_change().dropna() - daily_deduct
+        corr = (1 + ret).cumprod()
+        # 避免 concat 产生的重复索引
+        corr = pd.concat([pd.Series(1.0, index=[corr.index[0]]), corr.iloc[1:]])
+        copper = corr.sort_index()
+    return copper
+
+
+def load_panel(include_wti: bool = True) -> pd.DataFrame:
     """加载 9 资产收盘价面板（含缝合，对齐到回测期间，前向填充）。
 
     2008+ 延长回测：ETF 上市前的期间用指数/期货/国际价格拼接。
@@ -336,7 +359,10 @@ def load_panel(include_wti: bool = False) -> pd.DataFrame:
             "nonferr 三级回退全部为空：需要 nonferr.csv（ETF）、"
             "nonferr_idx.csv（指数）或 shfe_copper.csv（沪铜）至少一个")
 
-    # 原油 WTI (USD×USDCNY)
+    # 铜期货独立加载
+    copper = _load_copper()
+
+    # 原油（SC0 优先，WTI USD×USDCNY 拼接）
     if include_wti:
         wti_cny = _load_wti_cny()
 
@@ -348,6 +374,7 @@ def load_panel(include_wti: bool = False) -> pd.DataFrame:
         "bond_30y": bond_30y,
         "gold":     gold,
         "nonferr":  nonferr,
+        "copper":   copper,
     })
     if include_wti:
         panel["wti"] = wti_cny
@@ -360,22 +387,48 @@ def load_panel(include_wti: bool = False) -> pd.DataFrame:
 
 
 def _load_wti_cny() -> pd.Series:
-    """WTI 原油 CNY：WTI USD × USDCNY，全段扣减 QDII 管理费 1.0%/年。"""
-    wti = load_series("wti")
+    """SC原油 CNY（主力）：SC0 优先，2018年前用 WTI USD × USDCNY 拼接。
+
+    SC原油（SC.INE）2018-03-26 上市，人民币计价，无 QDII 限制。
+    此前用 WTI CL × USDCNY 做历史代理（扣除 QDII 管理费 1.0%/年）。
+    """
+    sc = _load_optional("wti")       # SC0, ~2018+
+    wti_usd = _load_optional("wti_usd")  # WTI CL USD, 1996+
     usdcny = _load_optional("usdcny")
-    if wti.empty:
-        raise FileNotFoundError("wti data not available")
-    if usdcny is None or usdcny.empty:
-        return wti  # 无汇率数据时回退 USD
-    combined = wti.index.union(usdcny.index).sort_values()
-    wti = wti.reindex(combined).ffill()
-    usdcny = usdcny.reindex(combined).ffill()
-    wti_cny = (wti * usdcny).dropna()
+
+    has_sc = sc is not None and not sc.empty
+    has_wti = wti_usd is not None and not wti_usd.empty and usdcny is not None and not usdcny.empty
+
+    # 只有 WTI 无 SC → 老方法（回退兼容）
+    if not has_sc and has_wti:
+        combined = wti_usd.index.union(usdcny.index).sort_values()
+        w = wti_usd.reindex(combined).ffill()
+        u = usdcny.reindex(combined).ffill()
+        wti_cny = (w * u).dropna()
+        daily_deduct = SAFETY_DEDUCT.get("wti", 0.0) / 252.0
+        if daily_deduct > 0:
+            ret = wti_cny.pct_change().fillna(0.0) - daily_deduct
+            wti_cny = (1 + ret).cumprod() * wti_cny.iloc[0]
+        return wti_cny
+
+    # 只有 SC 无 WTI → 直接用 SC
+    if has_sc and not has_wti:
+        return sc
+
+    # 两者都有 → 拼接: WTI proxy pre-SC, SC 2018+
+    if not has_sc or not has_wti:
+        raise FileNotFoundError("wti / wti_usd 数据均不可用")
+
+    combined = wti_usd.index.union(usdcny.index).sort_values()
+    w = wti_usd.reindex(combined).ffill()
+    u = usdcny.reindex(combined).ffill()
+    wti_proxy = (w * u).dropna()
     daily_deduct = SAFETY_DEDUCT.get("wti", 0.0) / 252.0
     if daily_deduct > 0:
-        ret = wti_cny.pct_change().fillna(0.0) - daily_deduct
-        wti_cny = (1 + ret).cumprod() * wti_cny.iloc[0]
-    return wti_cny
+        ret = wti_proxy.pct_change().fillna(0.0) - daily_deduct
+        wti_proxy = (1 + ret).cumprod() * wti_proxy.iloc[0]
+
+    return stitch_series(sc, wti_proxy, annual_deduct=0.0)
 
 
 def load_hs300_pe(col_index: int = 2) -> pd.Series:
