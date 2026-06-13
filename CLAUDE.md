@@ -147,29 +147,28 @@ allweather/
 
 ### 6 步流水线
 
-1. 加载 9 资产面板 → 2. 跑 4 策略 × 3 现金档 = 12 回测（+3 动态现金 = 15）→ 3. 算衍生指标 + D_excess 显著性 → 4. Block Bootstrap (1000×5yr, 21d block) → 5. 打印控制台 → 6. 保存 CSV/JSON/Excel/Markdown/图表
+1. 加载 9 资产面板 → 2. 跑 3 策略 × 3-4 现金档 = 11 回测 → 3. 算衍生指标 + D_excess 显著性 → 4. Block Bootstrap (1000×5yr, 21d block) → 5. 打印控制台 → 6. 保存 CSV/JSON/Excel/Markdown/图表
 
-### 四策略
+### 三策略
 
 | 策略 | 引擎 | 核心逻辑 | 资产数 | 特点 |
 |------|------|----------|--------|------|
-| V3c 多元 | `backtest.py::backtest_iv` → 统一`backtest()` | 逆波动率 60d (max 0.30) + nonferr 75d + HS300 AND抄底 | 8 (含 wti, copper) | 最简，每月调仓 |
-| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 + 危机波动率控制 | 8 (无 bond_10y, 含 wti/copper) | CAGR 9.09%，三重风控+危机波动率控制 |
 | V3-B 保守增强(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 逆波动率 20d (max 0.25) + nonferr 75d + HS300 AND抄底 | 9 (含 bond_10y, wti, copper) | Sharpe 1.32 最高 |
+| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 + 危机波动率控制 | 8 (无 bond_10y, 含 wti/copper) | CAGR 9.09%，三重风控+危机波动率控制 |
 | V4 全天候杠杆 | `backtest.py::backtest_iv` → 统一`backtest()` | 逆波动率 60d + **bond_10y T.CFFEX 5x杠杆** + nonferr 75d + HS300 AND抄底 | 9 | CAGR 11.44%最高, Sharpe 1.66, 真正风险平价 |
 
-× 3 现金档（含动态）：100% RP / 85% RP / 70% RP / 动态。div_idx 和 soymeal 已于 2026-05-27 移除。
+× 3-4 现金档：100% RP / 85% RP / 70% RP / 动态（仅 V3-B 系列）。div_idx 和 soymeal 已于 2026-05-27 移除。
 wti（SC原油期货 SC.INE）已集成数据管道和引擎，人民币计价，无 QDII 限制。copper（沪铜 CU.SHF）独立暴露。
 
 ### 资产与桶
 
-| 桶 | 资产 | V3c | V3-B RP | V3-B Con | V4 |
-|----|------|:---:|:-------:|:--------:|:--:|
-| 增长↑ | hs300, us_sp500 | ✓ | ✓ | ✓ | ✓ |
-| 收益垫 | credit | ✓ | ✓ | ✓ | ✓ |
-| 增长↓10Y | bond_10y | — | — | ✓ | ✓(5x杠杆) |
-| 增长↓30Y | bond_30y | ✓ | ✓ | ✓ | ✓ |
-| 通胀↑ | gold, nonferr, wti, copper | ✓ | ✓ | ✓ | ✓ |
+| 桶 | 资产 | V3-B Con | V3-B RP | V4 |
+|----|------|:--------:|:-------:|:--:|
+| 增长↑ | hs300, us_sp500 | ✓ | ✓ | ✓ |
+| 收益垫 | credit | ✓ | ✓ | ✓ |
+| 增长↓10Y | bond_10y | ✓ | — | ✓(5x杠杆) |
+| 增长↓30Y | bond_30y | ✓ | ✓ | ✓ |
+| 通胀↑ | gold, nonferr, wti, copper | ✓ | ✓ | ✓ |
 
 V3-B RP 去掉了 bond_10y：CAGR +1.43pp，Sharpe 仅 -0.02。
 

@@ -9,7 +9,7 @@ from .config import OUTPUT_DIR
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
 
-STRAT_NAMES = ["V3c 多元", "V3-B 风险平价(20d)", "V3-B 保守增强(20d)"]
+STRAT_NAMES = ["V3-B 保守增强(20d)", "V3-B 风险平价(20d)", "V4 全天候杠杆"]
 TIER_LABELS = ["100% RP", "85% RP", "70% RP", "动态"]
 
 
@@ -684,9 +684,9 @@ def _build_placeholders(S):
 
     ph = {}
     STRAT_MAP = [
-        ("V3c 多元",              "V3C"),
-        ("V3-B 风险平价(20d)",     "V3BRP"),
         ("V3-B 保守增强(20d)",     "V3BCON"),
+        ("V3-B 风险平价(20d)",     "V3BRP"),
+        ("V4 全天候杠杆",          "V4"),
     ]
     TIERS = ["100% RP", "85% RP", "70% RP"]
     TIER_SHORT = {"100% RP": "100RP", "85% RP": "85RP", "70% RP": "70RP"}
@@ -704,12 +704,10 @@ def _build_placeholders(S):
         if prefix == "V3BCON":
             ph[f"{{{{{prefix}_VOL}}}}"] = p(s100["vol"])
 
-        # --- Bootstrap (仅 RP 有, Con 也有) ---
-        if prefix in ("V3BRP", "V3BCON"):
-            if b:
-                ph[f"{{{{{prefix}_BOOT_LOSS}}}}"] = p(b.get("loss_prob"))
-            if prefix == "V3BRP" and b:
-                ph[f"{{{{{prefix}_BOOT_P5}}}}"] = ps(b.get("p5"))
+        # --- Bootstrap ---
+        if b:
+            ph[f"{{{{{prefix}_BOOT_LOSS}}}}"] = p(b.get("loss_prob"))
+            ph[f"{{{{{prefix}_BOOT_P5}}}}"] = ps(b.get("p5"))
 
         # --- 年度特定值 (V3BCON) ---
         if prefix == "V3BCON":

@@ -96,9 +96,9 @@ def _sheet_recommendation(wb):
     _write_title(ws, 1, "桥水全天候策略 · 中国版 - 方案推荐", 4)
     _write_headers(ws, 3, ["推荐度", "方案", "标签", "说明"])
     notes = {
-        "V3c 多元": "海外 8% 国别分散最强，综合 Sharpe 最高，蒙特卡洛下沿最厚实",
-        "V3-B 风险平价(20d)": "4桶等权HRP + Gold/SP500趋势过滤，CAGR 最高，攻守兼备",
         "V3-B 保守增强(20d)": "逆波动率 20d + max_w=0.25，Sharpe 最高，回撤最浅",
+        "V3-B 风险平价(20d)": "4桶等权HRP + Gold/SP500趋势过滤，CAGR 最高，攻守兼备",
+        "V4 全天候杠杆": "bond_10y T.CFFEX 杠杆5x，CAGR 最高，Sharpe 最高",
     }
     # PORTFOLIO_TAGS 的顺序不是推荐顺序，按 stars 数量重排
     items = sorted(PORTFOLIO_TAGS.items(), key=lambda kv: -len(kv[1]["stars"]))
@@ -114,7 +114,7 @@ def _sheet_recommendation(wb):
             ws.cell(row=i, column=c).border = BORDER
 
     # 注脚
-    ws.cell(row=8, column=1, value="📌 默认主推 V3c 多元；其它两套是「特殊偏好」备选。")
+    ws.cell(row=8, column=1, value="📌 保守增强适合保守资金，风险平价为全天候正统方案，V4 为杠杆进阶方案。")
     ws.merge_cells(start_row=8, start_column=1, end_row=8, end_column=4)
     ws.cell(row=8, column=1).alignment = LEFT
     _autofit(ws)
@@ -152,10 +152,6 @@ def _sheet_perf(wb, perf_results):
             ws.cell(row=r, column=c).alignment = RIGHT
         for c in range(1, 11):
             ws.cell(row=r, column=c).border = BORDER
-        # 主推 V3c 100% RP 高亮
-        if port == "V3c 多元" and tier == "100% RP":
-            for c in range(1, 11):
-                ws.cell(row=r, column=c).fill = RECO_FILL
         r += 1
     # 负数红字（MDD 一定是负，累计也可能负）
     rng = f"C4:J{r-1}"
@@ -392,7 +388,7 @@ def _sheet_nv_curves(wb, nv_results):
     ws = wb.create_sheet("净值曲线")
     df = pd.DataFrame({f"{p}_{t}": nv for (p, t), nv in nv_results.items()})
     headers = ["日期"] + list(df.columns)
-    _write_title(ws, 1, "9 条净值曲线（V3b/V3c/V3d × 100/85/70% RP）", len(headers))
+    _write_title(ws, 1, "净值曲线（三策略 × 多现金档）", len(headers))
     _write_headers(ws, 3, headers)
     # 批量写入（ws.append 比逐格 cell 赋值快数倍）
     for idx, row in df.iterrows():

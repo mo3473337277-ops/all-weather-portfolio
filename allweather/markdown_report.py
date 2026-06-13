@@ -61,13 +61,11 @@ def _section_recommendation(perf_results=None):
         return ""
 
     items = sorted(PORTFOLIO_TAGS.items(), key=lambda kv: -len(kv[1]["stars"]))
-    cagr3 = _fmt("V3c 多元", "cagr")
     cagr_rp = _fmt("V3-B 风险平价(20d)", "cagr")
     sharpe_con = _fmt("V3-B 保守增强(20d)", "sharpe", pct=False)
     notes = {
-        "V3c 多元": f"实战派 — 6资产逆波动率 60d + nonferr 趋势过滤 + HS300抄底{f'，CAGR {cagr3}' if cagr3 else ''}",
-        "V3-B 风险平价(20d)": f"学院派 — 4桶分层风险平价(30Y) + nonferr/gold/sp500 趋势过滤 + Gold/HS300抄底{f'，CAGR {cagr_rp}' if cagr_rp else ''}",
         "V3-B 保守增强(20d)": f"保守增强 — 逆波动率+nonferr趋势过滤+HS300抄底{'，Sharpe 最高（' + sharpe_con + '）' if sharpe_con else ''}",
+        "V3-B 风险平价(20d)": f"学院派 — 4桶分层风险平价(30Y) + nonferr/gold/sp500 趋势过滤 + Gold/HS300抄底{f'，CAGR {cagr_rp}' if cagr_rp else ''}",
     }
     rows = [(tag["stars"], port, tag["label"], notes.get(port, ""))
             for port, tag in items]
@@ -75,8 +73,6 @@ def _section_recommendation(perf_results=None):
         "## 方案推荐",
         "",
         _md_table(["推荐度", "方案", "标签", "说明"], rows),
-        "",
-        "> **V3c** 和 **V3-B** 是两条不同路线的 ★★★ 推荐：V3-B 4桶(30Y) CAGR 最高，V3c 落地最简单，保守增强 Sharpe 最高适合低波动偏好。",
         "",
     ]
 

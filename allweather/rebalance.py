@@ -5,8 +5,8 @@
 
 用法：
     python -m allweather.rebalance                 # 交互式，三策略对比
-    python -m allweather.rebalance --strat V3c     # 看单个策略详情
-    python -m allweather.rebalance --strat V3c --amount 500000   # 建仓清单
+    python -m allweather.rebalance --strat B-RP   # 看单个策略详情
+    python -m allweather.rebalance --strat B-Con --amount 500000   # 建仓清单
     python -m allweather.rebalance --signals       # 只看当前信号状态
     python -m allweather.rebalance --no-auto-fetch # 跳过数据更新
 """
@@ -26,7 +26,6 @@ from .config import (
 from .risk import inverse_vol_weights, hierarchical_rp_weights
 
 # === 策略定义 ===
-V3C_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
 V3B_RP_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
 V3B_CON_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "nonferr", "wti", "copper"]
 
@@ -45,11 +44,6 @@ V3B_CON_BUCKETS = {
 }
 
 STRATEGIES = {
-    "V3c": {
-        "name": "V3c 多元", "assets": V3C_ASSETS,
-        "method": "inverse_vol", "window": 60,
-        "max_w": 0.30, "min_w": 0.03,
-    },
     "B-RP": {
         "name": "V3-B 风险平价(20d)", "assets": V3B_RP_ASSETS,
         "method": "hierarchical_rp", "window": 20,
@@ -204,7 +198,7 @@ def apply_signal_overrides(strat_key, w, signals):
             if w["credit"] >= boost:
                 w["gold"] += boost
                 w["credit"] -= boost
-                if strat_key in ("V3c", "B-Con"):
+                if strat_key == "B-Con":
                     cap = 0.20
                     if w["gold"] > cap:
                         w["credit"] += w["gold"] - cap
@@ -300,21 +294,21 @@ def display_weight_table(strat_key, w, signals):
 
 
 def display_all_strategies(prices, signals, tier="100"):
-    """三策略目标权重同屏对比。"""
+    """策略目标权重同屏对比。"""
     cash_ratio = 1 - int(tier) / 100
     results = {}
-    for k in ["V3c", "B-RP", "B-Con"]:
+    for k in ["B-RP", "B-Con", "V4"]:
         w0 = compute_target_weights(k, prices, cash_ratio)
         w1 = apply_signal_overrides(k, w0, signals)
         results[k] = w1
 
     print(f"\n{LINE}")
-    print(f"  三策略目标权重对比（{tier}% RP）  数据: {prices.index[-1].date()}")
+    print(f"  策略目标权重对比（{tier}% RP）  数据: {prices.index[-1].date()}")
     print(LINE)
 
     # Header
     print(f"  {'资产':<22} {'代码':<8}", end="")
-    for k in ["V3c", "B-RP", "B-Con"]:
+    for k in ["B-RP", "B-Con", "V4"]:
         print(f"{STRATEGIES[k]['name']:>20}", end="")
     print()
 
@@ -323,13 +317,13 @@ def display_all_strategies(prices, signals, tier="100"):
     for a in ASSETS:
         meta = ETF_META.get(a, {"code": "", "name": a})
         print(f"  {meta['name']:<22} {meta['code']:<8}", end="")
-        for k in ["V3c", "B-RP", "B-Con"]:
+        for k in ["B-RP", "B-Con", "V4"]:
             pct = results[k].get(a, 0)
             print(f"{_pct(pct):>20}", end="")
         print()
 
     print(f"  {'':<22} {'合计':<8}", end="")
-    for k in ["V3c", "B-RP", "B-Con"]:
+    for k in ["B-RP", "B-Con", "V4"]:
         print(f"{_pct(results[k].sum()):>20}", end="")
     print()
 
@@ -489,13 +483,12 @@ def _auto_fetch_if_stale(max_calendar_days=7):
 def display_strategy_summary():
     """三策略概要对比（每策略一行）。"""
     rows = [
-        ("V3c 多元", "逆波动率 60d", "8.96%", "1.21", "-9.17%", "+wti/copper"),
-        ("V3-B 风险平价(20d)", "HRP 4桶", "9.09%", "1.21", "-8.82%", "CAGR最高"),
-        ("V3-B 保守增强(20d)", "逆波动率 20d", "7.68%", "1.32", "-6.08%", "Sharpe最高"),
-        ("V4 全天候杠杆", "逆波动率 60d+T.CFFEX 5x", "—", "—", "—", "国债期货杠杆"),
+        ("V3-B 保守增强(20d)", "逆波动率 20d", "7.68%", "1.32", "-6.08%", "Sharpe最高，回撤最浅"),
+        ("V3-B 风险平价(20d)", "HRP 4桶", "9.09%", "1.21", "-8.82%", "CAGR最高，正统全天候"),
+        ("V4 全天候杠杆", "逆波动率 60d+T.CFFEX 5x", "11.44%", "1.66", "-13.87%", "绝对收益最高"),
     ]
     print(f"\n{LINE}")
-    print("  三策略概要")
+    print("  策略概要")
     print(LINE)
     print(f"  {'策略':<22} {'方法':<16} {'CAGR':>7} {'Sharpe':>7} {'MDD':>8}  {'说明'}")
     print("  " + "-" * 72)
@@ -615,17 +608,17 @@ def main():
         _single_strat_flow(strat_key, tier, prices, signals, build_amount)
         return
 
-    # 有金额无策略 → 默认 V3c
+    # 有金额无策略 → 默认 B-Con
     if build_amount:
-        print("(默认使用 V3c 多元策略)")
-        _single_strat_flow("V3c", tier, prices, signals, build_amount)
+        print("(默认使用 V3-B 保守增强策略)")
+        _single_strat_flow("B-Con", tier, prices, signals, build_amount)
         return
 
     # 无参数 → 信号 + 策略概要 + 选策略
     display_signal_dashboard(signals)
     display_strategy_summary()
 
-    pick = input(f"\n选择策略 (V3c/B-RP/B-Con/V4，回车=退出): ").strip()
+    pick = input(f"\n选择策略 (B-RP/B-Con/V4，回车=退出): ").strip()
     if pick in STRATEGIES:
         _single_strat_flow(pick, tier, prices, signals, None)
 

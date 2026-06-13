@@ -150,8 +150,7 @@ V4_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "non
 
 # === 策略标签 ===
 PORTFOLIO_TAGS = {
-    "V3c 多元":            {"stars": "★★★", "label": "简约派 — 8资产逆波动率 60d + nonferr(75d) + HS300 AND抄底"},
+    "V3-B 保守增强(20d)":  {"stars": "★★★", "label": "保守增强 — 逆波动率 20d + nonferr(75d) + HS300 AND抄底，max_w=0.25"},
     "V3-B 风险平价(20d)":  {"stars": "★★★", "label": "学院派 — 4桶等权 HRP + nonferr(75d) + Gold(75d) + SP500(120d) + HS300 AND抄底"},
-    "V3-B 保守增强(20d)":  {"stars": "★★★", "label": "保守增强 — 逆波动率 20d + nonferr(75d) + SP500(120d) + HS300 AND抄底，max_w=0.25"},
     "V4 全天候杠杆":       {"stars": "★★★★", "label": "全天候 — 9资产逆波动率60d + bond_10y T.CFFEX杠杆5x + 趋势过滤"},
 }
