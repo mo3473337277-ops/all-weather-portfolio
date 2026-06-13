@@ -102,7 +102,8 @@ def step_2_run_backtests(rets):
                         signal_label="V3-B 风险平价",
                         hs300_pb_data=hs300_pb_data, hs300_pe_data=hs300_pe_data,
                         hs300_pb_pct=hs300_pb_pct, hs300_pe_pct=hs300_pe_pct,
-                        track_dynamic_nav=True)
+                        track_dynamic_nav=True,
+                        target_vol=0.09)
     nv_base, nv_dyn, n, wh, sl = result
     nv_results[("V3-B 风险平价(20d)", "100% RP")] = nv_base
     nv_results[("V3-B 风险平价(20d)", "动态")] = nv_dyn

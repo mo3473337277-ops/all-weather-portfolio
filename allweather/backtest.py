@@ -114,6 +114,7 @@ def backtest(
     equity_trend_assets: list | None = None,
     equity_trend_window: int = 120,
     equity_trend_windows: dict | None = None,
+    target_vol: float | None = None,
     assets: list | None = None,
     dynamic_cash: bool = False,
     track_weights: bool = False,
@@ -267,6 +268,16 @@ def backtest(
             else:
                 new_w = inverse_vol_weights(window_df, window=iv_window, max_w=max_w, min_w=min_w)
             new_w_arr = new_w.values  # sums to ~1 (normalized)
+
+            # --- Target volatility: scale total exposure if estimated vol exceeds target ---
+            if target_vol is not None and i > 60:
+                recent = rets_rp.iloc[i - 60:i]
+                cov = recent.cov().values * 252
+                port_var = new_w_arr @ cov @ new_w_arr
+                port_vol = np.sqrt(max(port_var, 1e-10))
+                if port_vol > target_vol:
+                    scale = target_vol / port_vol
+                    new_w_arr = new_w_arr * scale
 
             # --- Lookup SMA conditions from precomputed cache ---
             nf_sma = None

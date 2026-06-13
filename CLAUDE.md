@@ -154,7 +154,7 @@ allweather/
 | 策略 | 引擎 | 核心逻辑 | 资产数 | 特点 |
 |------|------|----------|--------|------|
 | V3c 多元 | `backtest.py::backtest_iv` → 统一`backtest()` | 逆波动率 60d (max 0.30) + nonferr 75d + HS300 AND抄底 | 8 (含 wti, copper) | 最简，每月调仓 |
-| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 | 8 (无 bond_10y, 含 wti/copper) | CAGR 9.48%，三重风控 |
+| V3-B 风险平价(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 4 桶等权 HRP + nonferr 75d + gold 75d + sp500 120d + Gold dip + HS300 AND抄底 + 危机波动率控制 | 8 (无 bond_10y, 含 wti/copper) | CAGR 9.09%，三重风控+危机波动率控制 |
 | V3-B 保守增强(20d) | `strategy_b.py::backtest_b` → 统一`backtest()` | 逆波动率 20d (max 0.25) + nonferr 75d + HS300 AND抄底 | 9 (含 bond_10y, wti, copper) | Sharpe 1.32 最高 |
 | V4 全天候杠杆 | `backtest.py::backtest_iv` → 统一`backtest()` | 逆波动率 60d + **bond_10y T.CFFEX 5x杠杆** + nonferr 75d + HS300 AND抄底 | 9 | CAGR 11.44%最高, Sharpe 1.66, 真正风险平价 |
 

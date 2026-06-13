@@ -46,6 +46,7 @@ def backtest_b(
     hs300_pb_pct=None,
     hs300_pe_pct=None,
     track_dynamic_nav: bool = False,
+    target_vol: float | None = None,
 ):
     """Plan B backtest — 委托给 backtest() 统一引擎。"""
     return backtest(
@@ -82,4 +83,5 @@ def backtest_b(
         hs300_pb_pct=hs300_pb_pct,
         hs300_pe_pct=hs300_pe_pct,
         track_dynamic_nav=track_dynamic_nav,
+        target_vol=target_vol,
     )
