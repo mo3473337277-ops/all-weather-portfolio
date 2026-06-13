@@ -1,0 +1,96 @@
+name: Backtest
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --extra fetch --extra dev
+
+      - name: Run backtest
+        run: uv run python main.py --no-excel --no-markdown 2>&1 | tee backtest.log
+
+      - name: Check strategy targets
+        run: |
+          python3 -c "
+import json
+with open('docs/data.json', encoding='utf-8') as f:
+    d = json.load(f)
+
+checks = {
+    'V3-B 保守增强(20d)': {'cagr': 0.07, 'mdd': -0.07, 'vol': 0.05, 'sharpe': 1.2},
+    'V3-B 风险平价(20d)': {'cagr': 0.085, 'mdd': -0.09, 'vol': 0.07},
+    'V4 全天候杠杆':     {'cagr': 0.10, 'mdd': -0.15, 'vol': 0.09},
+}
+
+errors = []
+strategies = list(d['strategies'].keys())
+for s_name in strategies:
+    s = d['strategies'][s_name]
+    rp = s.get('100% RP')
+    if rp is None:
+        continue
+    cagr = rp.get('cagr', 0)
+    mdd = rp.get('mdd', 0)
+    vol = rp.get('vol', 0)
+    sharpe = rp.get('sharpe', 0)
+
+    for name, targets in checks.items():
+        if name not in s_name:
+            continue
+        cagr_target = targets.get('cagr')
+        if cagr_target and cagr < cagr_target:
+            errors.append(f'{name}: CAGR {cagr*100:.2f}% < {cagr_target*100:.0f}%')
+        mdd_target = targets.get('mdd')
+        if mdd_target and mdd < mdd_target:
+            errors.append(f'{name}: MDD {mdd*100:.2f}% < {mdd_target*100:.0f}%')
+        vol_target = targets.get('vol')
+        if vol_target and vol > vol_target:
+            errors.append(f'{name}: Vol {vol*100:.2f}% > {vol_target*100:.0f}%')
+        sharpe_target = targets.get('sharpe')
+        if sharpe_target and sharpe < sharpe_target:
+            errors.append(f'{name}: Sharpe {sharpe:.2f} < {sharpe_target:.1f}')
+
+if errors:
+    print('FAILED:', '; '.join(errors))
+    exit(1)
+else:
+    print('All strategy targets met.')
+"
+
+      - name: Upload backtest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-log
+          path: backtest.log
+
+      - name: Upload data.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-json
+          path: docs/data.json
+
+      - name: Upload charts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: charts
+          path: docs/charts/

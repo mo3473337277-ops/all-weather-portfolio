@@ -44,9 +44,9 @@ def _apply_trend_dip(w: np.ndarray, price_arr: np.ndarray, i: int,
             w[nf_idx] = 0.0
 
     if s["eq_smas"] and credit_idx >= 0:
-        for eq, below in s["eq_smas"].items():
+        for eq, sma_val in s["eq_smas"].items():
             eq_idx = col_idx.get(eq)
-            if eq_idx is not None and w[eq_idx] > 0 and below:
+            if eq_idx is not None and w[eq_idx] > 0 and price_arr[i, eq_idx] < sma_val:
                 w[credit_idx] += w[eq_idx]
                 w[eq_idx] = 0.0
 

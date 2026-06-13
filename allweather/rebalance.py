@@ -9,6 +9,7 @@
     python -m allweather.rebalance --strat B-Con --amount 500000   # 建仓清单
     python -m allweather.rebalance --signals       # 只看当前信号状态
     python -m allweather.rebalance --no-auto-fetch # 跳过数据更新
+    python -m allweather.rebalance --check-and-alert  # 非交互式信号检查（可定时执行）
 """
 
 import sys
@@ -553,11 +554,36 @@ def _single_strat_flow(strat_key, tier, prices, signals, build_amount):
 # 主入口
 # ============================================================
 
+def _check_and_alert(signals, date_str):
+    """非交互式信号检查，适合定时任务。"""
+    alerts = []
+    if signals.get("nonferr_below_sma75", False):
+        alerts.append("nonferr 跌破 SMA75 → 已清仓转移至 credit")
+    if signals.get("gold_below_sma75", False):
+        alerts.append("gold 跌破 SMA75 → 已清仓转移至 credit")
+    if signals.get("sp500_below_sma120", False):
+        alerts.append("SP500 跌破 SMA120 → 已清仓转移至 credit")
+    if signals.get("gold_dip_active", False):
+        alerts.append(f"黄金回撤 {signals['gold_dd_pct']*100:.1f}% → 抄底已触发")
+    if signals.get("hs300_dip_ready", False):
+        alerts.append("HS300 AND 抄底信号已就绪！")
+    if signals.get("hs300_dip_exit", False):
+        alerts.append("HS300 AND 抄底 → PE分位偏高，建议出场")
+
+    if alerts:
+        print(f"[{date_str}] 风控信号提醒:")
+        for a in alerts:
+            print(f"  ! {a}")
+    else:
+        print(f"[{date_str}] 所有信号正常，无需操作。")
+
+
 def main():
     args = sys.argv[1:]
     strat_key = None
     tier = None
     show_signals_only = False
+    check_alert = False
     build_amount = None
     no_auto_fetch = False
 
@@ -569,6 +595,8 @@ def main():
             tier = args[i + 1]; i += 2
         elif args[i] in ("--signals", "-s"):
             show_signals_only = True; i += 1
+        elif args[i] in ("--check-and-alert", "-c"):
+            check_alert = True; i += 1
         elif args[i] == "--amount" and i + 1 < len(args):
             build_amount = float(args[i + 1]); i += 2
         elif args[i] == "--no-auto-fetch":
@@ -597,6 +625,10 @@ def main():
     print(f"最新数据: {last_date}  |  共 {len(prices)} 个交易日\n")
 
     signals = compute_signal_states(prices)
+
+    if check_alert:
+        _check_and_alert(signals, last_date)
+        return
 
     if show_signals_only:
         display_signal_dashboard(signals)
