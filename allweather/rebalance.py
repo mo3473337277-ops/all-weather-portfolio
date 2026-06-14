@@ -72,11 +72,15 @@ LINE = "=" * 72
 # ============================================================
 
 def _sma_filter(prices, asset, window):
-    """资产跌破 SMA → 返回 True（应清仓）。"""
+    """资产跌破 SMA → 返回 True（应清仓）。
+
+    使用 .shift(1) 避免前视偏差，与 backtest.py 引擎一致。
+    """
     if asset not in prices.columns or len(prices) < window:
         return False
     s = prices[asset]
-    return s.iloc[-1] < s.iloc[-window:].mean()
+    sma = s.rolling(window).mean().shift(1).iloc[-1]
+    return pd.notna(sma) and s.iloc[-1] < sma
 
 
 def _drawdown(prices, asset, lookback=252):
@@ -110,9 +114,9 @@ def compute_signal_states(prices):
     hs300_dd = _drawdown(prices, "hs300", 756)
     signals["hs300_dd_pct"] = hs300_dd
 
-    # HS300 SMA check (> SMA120 for entry)
-    hs300_sma120 = prices["hs300"].iloc[-120:].mean() if len(prices) >= 120 else 0
-    signals["hs300_above_sma120"] = prices["hs300"].iloc[-1] > hs300_sma120 if len(prices) >= 120 else False
+    # HS300 SMA check (> SMA120 for entry, 与 backtest 引擎一致用 shift(1))
+    hs300_sma120 = prices["hs300"].rolling(120).mean().shift(1).iloc[-1]
+    signals["hs300_above_sma120"] = pd.notna(hs300_sma120) and prices["hs300"].iloc[-1] > hs300_sma120
 
     # HS300 PB/PE percentile
     try:

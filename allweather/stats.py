@@ -8,7 +8,10 @@ from .config import (
 
 
 def perf_metrics(nv: pd.Series, rets: pd.Series | None = None) -> dict:
-    """从净值序列算核心指标。"""
+    """从净值序列算核心指标。
+
+    注：sharpe = (CAGR - RISK_FREE_ANNUAL) / vol, 与 CLAUDE.md 一致。
+    """
     r = rets if rets is not None else nv.pct_change().dropna()
     n = len(r)
     n_years = n / 252.0
@@ -17,12 +20,12 @@ def perf_metrics(nv: pd.Series, rets: pd.Series | None = None) -> dict:
     vol = r.std() * np.sqrt(252)
     mdd = ((nv / nv.cummax()) - 1).min()
     sharpe_raw = cagr / vol if vol > 0 else float("nan")
+    sharpe = (cagr - RISK_FREE_ANNUAL) / vol if vol > 0 else float("nan")
+    calmar = cagr / abs(mdd) if mdd < 0 else float("nan")
+    # 以下为诊断用：算术超额 vs 几何超额的差异
     rf_daily = RISK_FREE_ANNUAL / 252
     excess = r - rf_daily
     arith_mean_excess = excess.mean() * 252
-    sharpe = arith_mean_excess / vol if vol > 0 else float("nan")
-    SR_true = sharpe
-    calmar = cagr / abs(mdd) if mdd < 0 else float("nan")
     G_real = cagr - RISK_FREE_ANNUAL
     G_theo = arith_mean_excess - vol**2 / 2
     geometric_excess_d = G_real - G_theo
@@ -36,7 +39,6 @@ def perf_metrics(nv: pd.Series, rets: pd.Series | None = None) -> dict:
         "sharpe_raw": sharpe_raw,
         "calmar": calmar,
         "final_nv": nv.iloc[-1],
-        "SR_true": SR_true,
         "G_real": G_real,
         "G_theoretical": G_theo,
         "geometric_excess_d": geometric_excess_d,

@@ -380,7 +380,17 @@ def load_panel(include_wti: bool = True) -> pd.DataFrame:
         panel["wti"] = wti_cny
     panel.index = pd.to_datetime(panel.index)
     panel = panel.sort_index()
-    panel = panel.loc[BACKTEST_START:BACKTEST_END].ffill().dropna()
+    panel = panel.loc[BACKTEST_START:BACKTEST_END].ffill()
+
+    # 找到所有资产都开始有数据的起始日，而非一个资产缺失就整行删除
+    # 避免早期部分资产无 proxy 时截断太狠
+    valid_start = panel.apply(lambda s: s.first_valid_index())
+    earliest_all_valid = valid_start.max()  # 最晚的 first-valid = 全部就绪日
+    if earliest_all_valid is not None and earliest_all_valid > panel.index[0]:
+        panel = panel.loc[earliest_all_valid:]
+
+    # 至此所有资产都有数据；dropna 仅做安全网（应无操作）
+    panel = panel.dropna()
 
     return panel
 
