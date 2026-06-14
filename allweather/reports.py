@@ -304,13 +304,6 @@ def print_summary_recommendation(perf_results=None):
           "- 不含10Y国债，久期敞口略低"],
          "适合：追求简单实盘、认同多元资产理念、无需杠杆的投资者"),
 
-        ("CI011001 全天候", "★★★★★", "机构全天候", "8资产 ERC风险平价60d + 双向目标波动率5% + bond_10y 2.5x杠杆",
-         [f"+ 对标国泰海通 CI011001.WI 真实指数方法论",
-          f"+ ERC 等风险贡献 + 双向目标波动率(5%/2.5%)控制回撤",
-          "+ 动态杠杆(危机时 bond_10y 2.5x → 1.5x)降低尾部风险",
-          f"- 复刻偏离真实指数(CAGR {_pv('CI011001 全天候','cagr','pct','%')} vs CI011001 8.12%)",
-          "- 换手率偏高(2.37x/年)，实盘执行成本待优化"],
-         "适合：机构级配置、追求类似 CI011001 的风险收益特征"),
     ]
 
     for name, stars, tagline, desc, items, audience in cards:
@@ -322,7 +315,7 @@ def print_summary_recommendation(perf_results=None):
         print()
 
     print("  ── 一句话选策略 ──")
-    print("  要保守 → V3-B 保守增强   要高回报 → V3-B RP   要多元 → V3c 多元   要机构级 → CI011001")
+    print("  要保守 → V3-B 保守增强   要高回报 → V3-B RP   要多元 → V3c 多元")
     print()
 
 

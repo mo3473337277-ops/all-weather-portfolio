@@ -20,9 +20,6 @@ from .config import (
     BUCKETS, BUCKET_GROUPS,
     SP500_TREND_WINDOW,
     V3C_ASSETS,
-    CI011001_ASSETS, CI011001_LEVERAGE, CI011001_DYN_LEV,
-    CI011001_ERC_WINDOW, CI011001_MAX_W, CI011001_MIN_W,
-    CI011001_TARGET_VOL, CI011001_VOL_FLOOR, CI011001_CASH_RATIO,
 )
 
 V3B_ASSETS = [a for assets in BUCKET_GROUPS.values() for a in assets]
@@ -36,7 +33,7 @@ V3B_RP_ASSETS = [a for assets in V3B_RP_BUCKETS.values() for a in assets]
 from . import reports
 DOCS_DIR = OUTPUT_DIR.parent / "docs"
 from .update_docs import save_docs_json, patch_index_html
-from .strategy_b import backtest_b, backtest_ci011001
+from .strategy_b import backtest_b
 
 
 def step_1_load_data():
@@ -137,27 +134,6 @@ def step_2_run_backtests(rets):
     for tier_label, c in [("85% RP", 0.15), ("70% RP", 0.30)]:
         nv_results[("V3c 多元", tier_label)] = adjust_nav_for_cash(nv_base_v3c, c)
 
-    # --- CI011001 全天候: ERC 风险平价 + 双向目标波动率 5% + 债券动态杠杆 ---
-    ci011001_rets = rets[[a for a in CI011001_ASSETS if a in rets.columns]]
-    result_ci = backtest_ci011001(
-        ci011001_rets,
-        cash_ratio=CI011001_CASH_RATIO,
-        track_weights=True,
-        track_signals=True,
-        track_dynamic_nav=False,
-        hs300_pb_data=hs300_pb_data,
-        hs300_pe_data=hs300_pe_data,
-        hs300_pb_pct=hs300_pb_pct,
-        hs300_pe_pct=hs300_pe_pct,
-    )
-    nv_base_ci, n_ci, wh_ci, sl_ci = result_ci
-    nv_results[("CI011001 全天候", "100% RP")] = nv_base_ci
-    weight_history["CI011001 全天候"] = wh_ci
-    signal_logs["CI011001 全天候"] = sl_ci
-    n_rebal_total += n_ci
-    for tier_label, c in [("85% RP", 0.15), ("70% RP", 0.30)]:
-        nv_results[("CI011001 全天候", tier_label)] = adjust_nav_for_cash(nv_base_ci, c)
-
     total = len(nv_results)
     print(f"  ok 完成 {total} 个回测")
     print(f"  ok 总调仓次数: {n_rebal_total}")
@@ -194,7 +170,7 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
             regime_labels[d] = f"{s}+{b}"
 
     for (p, tier), nv_s in nv_results.items():
-        if ("V3" in p or "CI011001" in p) and tier == "100% RP":
+        if "V3" in p and tier == "100% RP":
             yearly[p] = yearly_returns(nv_s, rets=rets_by_nv[(p, tier)])
             regime[p] = regime_returns(nv_s, regime_labels=regime_labels)
             events[p] = event_returns(nv_s, STRESS_EVENTS)
@@ -236,7 +212,7 @@ def step_4_bootstrap(rets, nv_results=None, weight_history=None):
     rp_buckets_boot_rp = {k: list(v) for k, v in V3B_RP_BUCKETS.items()}
 
     for (portfolio, tier), _nv in (nv_results or {}).items():
-        if ("V3" in portfolio or "CI011001" in portfolio) and tier == "100% RP":
+        if "V3" in portfolio and tier == "100% RP":
             if weight_history is not None and portfolio in weight_history:
                 proxy_w = weight_history[portfolio].iloc[-1]
             else:
@@ -244,14 +220,6 @@ def step_4_bootstrap(rets, nv_results=None, weight_history=None):
                 if "保守增强" in portfolio:
                     proxy_w = inverse_vol_weights(
                         boot_rets[V3B_ASSETS].tail(20), window=20, max_w=0.25, min_w=0.02)
-                elif "CI011001" in portfolio:
-                    from .risk import erc_weights
-                    proxy_w = erc_weights(
-                        boot_rets[[a for a in CI011001_ASSETS if a in boot_rets.columns]].tail(CI011001_ERC_WINDOW),
-                        window=CI011001_ERC_WINDOW,
-                        max_w=CI011001_MAX_W,
-                        min_w=CI011001_MIN_W,
-                    )
                 else:
                     proxy_w = hierarchical_rp_weights(
                         boot_rets[V3B_RP_ASSETS].tail(20), rp_buckets_boot_rp, 20,

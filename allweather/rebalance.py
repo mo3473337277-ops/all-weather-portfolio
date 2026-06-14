@@ -30,7 +30,6 @@ from .risk import inverse_vol_weights, hierarchical_rp_weights, erc_weights
 V3B_RP_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
 V3B_CON_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "nonferr", "wti", "copper"]
 V3C_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti", "copper"]
-CI_ASSETS = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "copper", "wti"]
 
 V3B_RP_BUCKETS = {
     "增长↑": ["hs300", "us_sp500"],
@@ -61,11 +60,6 @@ STRATEGIES = {
     "V3c": {
         "name": "V3c 多元", "assets": V3C_ASSETS,
         "method": "inverse_vol", "window": 60,
-        "max_w": 0.25, "min_w": 0.02,
-    },
-    "CI": {
-        "name": "CI011001 全天候", "assets": CI_ASSETS,
-        "method": "erc", "window": 60,
         "max_w": 0.25, "min_w": 0.02,
     },
 }
@@ -496,7 +490,6 @@ def display_strategy_summary():
         ("V3-B 保守增强(20d)", "逆波动率 20d", "7.68%", "1.32", "-6.08%", "Sharpe最高，回撤最浅"),
         ("V3-B 风险平价(20d)", "HRP 4桶", "9.38%", "1.18", "-8.82%", "CAGR最高，正统全天候"),
         ("V3c 多元", "逆波动率 60d + 多元商品", "8.96%", "1.21", "-9.17%", "中位回报，无杠杆"),
-        ("CI011001 全天候", "ERC+目标波动率5%", "5.92%", "0.68", "-9.12%", "机构级复刻"),
     ]
     print(f"\n{LINE}")
     print("  策略概要")
