@@ -411,8 +411,6 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <tr><td class="td-first">30 年国债</td><td class="td-num">511130</td><td class="td-num">利率债</td><td class="td-num td-pos">✓</td><td class="td-num">长久期（~18yr），CAGR 10.50%，全策略增长↓桶主力</td></tr>
 <tr><td class="td-first">黄金</td><td class="td-num">518880</td><td class="td-num">商品</td><td class="td-num td-pos">✓</td><td class="td-num">通胀↑核心对冲，与股/债相关性均 < 0.07，CAGR 9.99%</td></tr>
 <tr><td class="td-first">有色金属</td><td class="td-num">159980</td><td class="td-num">商品</td><td class="td-num td-pos">✓</td><td class="td-num">工业金属通胀对冲，补充黄金以外的商品暴露</td></tr>
-<tr><td class="td-first">SC 原油</td><td class="td-num">SC.INE</td><td class="td-num">商品</td><td class="td-num td-pos">✓</td><td class="td-num">能源通胀对冲，与权益负相关，CAGR 8.86%</td></tr>
-<tr><td class="td-first">沪铜</td><td class="td-num">CU.SHF</td><td class="td-num">商品</td><td class="td-num td-pos">✓</td><td class="td-num">独立工业金属暴露，与有色相关性 0.52 适度分散</td></tr>
 </tbody></table>
 
 <p class="para-bold">淘汰资产及量化依据：</p>
@@ -440,9 +438,9 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <p class="para-bold">特征：8 资产逆波动率加权 60d + 月度调仓 + nonferr(75d)/SP500(75d) 趋势过滤 + HS300 AND抄底(价格回撤≥25% AND PB<30%ile → 1.8x)。精简高效，去冗余。CAGR 8.86%、回撤 -7.26%、Sharpe 1.20。</p>
 <p class="para">适合：初入全天候、不想研究桶逻辑、追求简单透明的投资者。</p>
 <h3 class="sec-h3">核心理念</h3>
-<p class="para">用最少的资产、最简单的规则，复现全天候的核心效果。8 只 ETF 覆盖四大宏观象限，逆波动率让低波资产（信用债）自然获得高权重——不需要预设任何比例，每月花 5 分钟照着算好的权重调一次即可。nonferr + SP500 双重趋势过滤做风控增强，不追求极致回报，追求"几乎不亏钱"的稳健复利。</p>
+<p class="para">用最少的资产、最简单的规则，复现全天候的核心效果。7 只 ETF 覆盖四大宏观象限，逆波动率让低波资产（信用债）自然获得高权重——不需要预设任何比例，每月花 5 分钟照着算好的权重调一次即可。nonferr + SP500 双重趋势过滤做风控增强，不追求极致回报，追求"几乎不亏钱"的稳健复利。</p>
 <h3 class="sec-h3">⚙️ 权重设计逻辑（逆波动率动态加权）</h3>
-<p class="para"><strong>动态权重方案：</strong>V3c 每月按过去 60 个交易日的逆波动率重新计算 8 项资产的权重。波动率低的资产（如信用债）自然获得更高权重，波动率高的资产（如权益）被自动压低。高 Sharpe 资产不会过度集中——只按风险贡献分配，不按历史收益分配。</p>
+<p class="para"><strong>动态权重方案：</strong>V3c 每月按过去 60 个交易日的逆波动率重新计算 7 项资产的权重。波动率低的资产（如信用债）自然获得更高权重，波动率高的资产（如权益）被自动压低。高 Sharpe 资产不会过度集中——只按风险贡献分配，不按历史收益分配。</p>
 <p class="para"><strong>资产配比（8 资产）：</strong>hs300 + us_sp500（权益）、credit（信用债）、bond_30y（长久期利率债）、gold + nonferr + wti + copper（通胀↑商品）。无 10Y 国债——30Y 久期约 18 年已足够覆盖利率风险，精简一只减少调仓复杂度。</p>
 <p class="para"><strong>调仓纪律：</strong>每月末逆波动率重算 + nonferr/SP500 趋势过滤（跌破 75d SMA → 清仓转投 credit）。</p>
 <table class="data-tbl" style="--header-color: #C0392B;">
@@ -475,8 +473,6 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <tr><td class="td-first">30 年国债 ETF</td><td class="td-num">511130</td><td class="td-num">8.0万 (8.0%)</td><td class="td-num">6.8万 (6.8%)</td><td class="td-num">5.6万 (5.6%)</td></tr>
 <tr><td class="td-first">黄金 ETF</td><td class="td-num">518880</td><td class="td-num">5.7万 (5.7%)</td><td class="td-num">4.8万 (4.8%)</td><td class="td-num">4.0万 (4.0%)</td></tr>
 <tr><td class="td-first">有色金属 ETF</td><td class="td-num">159980</td><td class="td-num">5.7万 (5.7%)</td><td class="td-num">4.8万 (4.8%)</td><td class="td-num">4.0万 (4.0%)</td></tr>
-<tr><td class="td-first">SC 原油期货</td><td class="td-num">SC.INE</td><td class="td-num">5.7万 (5.7%)</td><td class="td-num">4.8万 (4.8%)</td><td class="td-num">4.0万 (4.0%)</td></tr>
-<tr><td class="td-first">沪铜期货</td><td class="td-num">CU.SHF</td><td class="td-num">5.7万 (5.7%)</td><td class="td-num">4.8万 (4.8%)</td><td class="td-num">4.0万 (4.0%)</td></tr>
 <tr><td class="td-first">货币基金（现金）</td><td class="td-num">511880</td><td class="td-num">—</td><td class="td-num">15.0万 (15.0%)</td><td class="td-num">30.0万 (30.0%)</td></tr>
 <tr><td class="td-first">合计</td><td class="td-num"></td><td class="td-num">100 万</td><td class="td-num">100 万</td><td class="td-num">100 万</td></tr>
 </tbody></table>
@@ -634,7 +630,7 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 </div>
 <h3 class="sec-h3">（2005-2026 共 21 个年度）</h3>
 <h3 class="sec-h3">✅ 优势</h3>
-<p class="para">• 执行最简单 — 仅 8 只 ETF（最少），每月按逆波动率算一次权重，5 分钟搞定</p>
+<p class="para">• 执行最简单 — 仅 7 只 ETF（最少），每月按逆波动率算一次权重，5 分钟搞定</p>
 <p class="para">• 低回撤（-7.26%）+ 稳健回报（CAGR 8.86%），Sharpe 1.20</p>
 <p class="para">• 月度调仓一次，交易频率低，年化成本可忽略</p>
 <p class="para">• 21 年全部正收益，零负收益年份</p>
@@ -684,8 +680,6 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <tr><td class="td-first">增长↓</td><td class="td-num">30 年国债 ETF</td><td class="td-num">511130</td><td class="td-num">20.0万 (20.0%)</td><td class="td-num">17.0万 (17.0%)</td><td class="td-num">14.0万 (14.0%)</td></tr>
 <tr><td class="td-first">通胀↑</td><td class="td-num">黄金 ETF</td><td class="td-num">518880</td><td class="td-num">5.7万 (5.7%)</td><td class="td-num">4.8万 (4.8%)</td><td class="td-num">4.0万 (4.0%)</td></tr>
 <tr><td class="td-first">通胀↑</td><td class="td-num">有色金属 ETF</td><td class="td-num">159980</td><td class="td-num">5.1万 (5.1%)</td><td class="td-num">4.3万 (4.3%)</td><td class="td-num">3.6万 (3.6%)</td></tr>
-<tr><td class="td-first">通胀↑</td><td class="td-num">SC 原油期货</td><td class="td-num">SC.INE</td><td class="td-num">10.0万 (10.0%)</td><td class="td-num">8.5万 (8.5%)</td><td class="td-num">7.0万 (7.0%)</td></tr>
-<tr><td class="td-first">通胀↑</td><td class="td-num">沪铜期货</td><td class="td-num">CU.SHF</td><td class="td-num">10.0万 (10.0%)</td><td class="td-num">8.5万 (8.5%)</td><td class="td-num">7.0万 (7.0%)</td></tr>
 <tr><td class="td-first">货币基金（现金）</td><td class="td-num"></td><td class="td-num">511880</td><td class="td-num">—</td><td class="td-num">15.0万 (15.0%)</td><td class="td-num">30.0万 (30.0%)</td></tr>
 <tr><td class="td-first">合计</td><td class="td-num"></td><td class="td-num"></td><td class="td-num">100 万</td><td class="td-num">100 万</td><td class="td-num">100 万</td></tr>
 </tbody></table>
@@ -741,7 +735,7 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <p class="para">• 回撤 -6.91%，短期波动容忍度要求较高</p>
 <p class="para">• 4 桶逻辑比另外两个策略复杂——需要理解桶间等权 + 桶内逆波动率两层计算</p>
 <p class="para">• 2013 年金价 -29%、hs300 -22%、nonferr -19% 三杀，当月组合承受较大压力</p>
-<p class="para">• 调仓涉及 8 只 ETF，交易成本可控</p>
+<p class="para">• 调仓涉及 7 只 ETF，交易成本可控</p>
 <h2 class="plan-title plan-b">方案 3: V3-B 保守增强(20d)  ★★★ 强烈推荐</h2>
 <p class="para-bold">特征：直接逆波动率加权（无桶层级），nonferr 趋势过滤(75d) + HS300 AND抄底(价格回撤≥25% AND PB<30%ile → 1.8x)。不设宏观桶——9 个资产自由竞争权重。Sharpe 1.33 全策略最高，回撤 -6.08% 最浅。</p>
 <p class="para">适合：最重视低波动和睡得着觉的投资者。逆波动率让低波资产（债券）自然获得高权重，高波资产（商品）被自动压制。</p>
@@ -772,8 +766,6 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <tr><td class="td-first">增长↓30Y</td><td class="td-num">30 年国债 ETF</td><td class="td-num">511130</td><td class="td-num">4.2万 (4.2%)</td><td class="td-num">3.6万 (3.6%)</td><td class="td-num">2.9万 (2.9%)</td></tr>
 <tr><td class="td-first">通胀↑</td><td class="td-num">黄金 ETF</td><td class="td-num">518880</td><td class="td-num">3.5万 (3.5%)</td><td class="td-num">3.0万 (3.0%)</td><td class="td-num">2.5万 (2.5%)</td></tr>
 <tr><td class="td-first">通胀↑</td><td class="td-num">有色金属 ETF</td><td class="td-num">159980</td><td class="td-num">3.5万 (3.5%)</td><td class="td-num">3.0万 (3.0%)</td><td class="td-num">2.5万 (2.5%)</td></tr>
-<tr><td class="td-first">通胀↑</td><td class="td-num">SC 原油期货</td><td class="td-num">SC.INE</td><td class="td-num">3.5万 (3.5%)</td><td class="td-num">3.0万 (3.0%)</td><td class="td-num">2.5万 (2.5%)</td></tr>
-<tr><td class="td-first">通胀↑</td><td class="td-num">沪铜期货</td><td class="td-num">CU.SHF</td><td class="td-num">3.5万 (3.5%)</td><td class="td-num">3.0万 (3.0%)</td><td class="td-num">2.5万 (2.5%)</td></tr>
 <tr><td class="td-first">合计</td><td class="td-num"></td><td class="td-num"></td><td class="td-num">100 万</td><td class="td-num">100 万</td><td class="td-num">100 万</td></tr>
 </tbody></table>
 <h3 class="sec-h3">📈 回测核心指标 (2005-04 ~ 2026-04)</h3>
@@ -1424,18 +1416,6 @@ table.data-tbl tbody tr:hover { background: #f5f9fc; }
 <tr>
 <td class="td-first">159980</td>
 <td class="td-num">有色金属 ETF（期货）</td>
-<td class="td-num">通胀↑（金属）</td>
-<td class="td-num">全部推荐方案</td>
-</tr>
-<tr>
-<td class="td-first">SC.INE</td>
-<td class="td-num">SC 原油期货</td>
-<td class="td-num">通胀↑（能源）</td>
-<td class="td-num">全部推荐方案</td>
-</tr>
-<tr>
-<td class="td-first">CU.SHF</td>
-<td class="td-num">沪铜期货</td>
 <td class="td-num">通胀↑（金属）</td>
 <td class="td-num">全部推荐方案</td>
 </tr>
