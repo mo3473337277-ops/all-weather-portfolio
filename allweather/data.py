@@ -397,46 +397,38 @@ def load_panel(include_wti: bool = True) -> pd.DataFrame:
 
 
 def _load_wti_cny() -> pd.Series:
-    """SC原油 CNY（主力）：SC0 优先，2018年前用 WTI USD × USDCNY 拼接。
+    """南方原油 CNY（501018 LOF）：LOF 优先，2016年前用 WTI USD × USDCNY 拼接。
 
-    SC原油（SC.INE）2018-03-26 上市，人民币计价，无 QDII 限制。
-    此前用 WTI CL × USDCNY 做历史代理（扣除 QDII 管理费 1.0%/年）。
+    南方原油 LOF（501018）2019-04-26 上市，有 2016-06 起的历史 NAV 回算数据。
+    此前用 WTI CL × USDCNY 做历史代理。
     """
-    sc = _load_optional("wti")       # SC0, ~2018+
+    sc = _load_optional("wti")       # 501018 LOF, ~2016+
     wti_usd = _load_optional("wti_usd")  # WTI CL USD, 1996+
     usdcny = _load_optional("usdcny")
 
-    has_sc = sc is not None and not sc.empty
+    has_lof = sc is not None and not sc.empty
     has_wti = wti_usd is not None and not wti_usd.empty and usdcny is not None and not usdcny.empty
 
-    # 只有 WTI 无 SC → 老方法（回退兼容）
-    if not has_sc and has_wti:
+    # 只有 WTI 无 LOF → WTI×USDCNY（回退兼容）
+    if not has_lof and has_wti:
         combined = wti_usd.index.union(usdcny.index).sort_values()
         w = wti_usd.reindex(combined).ffill()
         u = usdcny.reindex(combined).ffill()
         wti_cny = (w * u).dropna()
-        daily_deduct = SAFETY_DEDUCT.get("wti", 0.0) / 252.0
-        if daily_deduct > 0:
-            ret = wti_cny.pct_change().fillna(0.0) - daily_deduct
-            wti_cny = (1 + ret).cumprod() * wti_cny.iloc[0]
         return wti_cny
 
-    # 只有 SC 无 WTI → 直接用 SC
-    if has_sc and not has_wti:
+    # 只有 LOF 无 WTI → 直接用 LOF
+    if has_lof and not has_wti:
         return sc
 
-    # 两者都有 → 拼接: WTI proxy pre-SC, SC 2018+
-    if not has_sc or not has_wti:
+    # 两者都有 → 拼接: WTI proxy pre-LOF, LOF 2016+
+    if not has_lof or not has_wti:
         raise FileNotFoundError("wti / wti_usd 数据均不可用")
 
     combined = wti_usd.index.union(usdcny.index).sort_values()
     w = wti_usd.reindex(combined).ffill()
     u = usdcny.reindex(combined).ffill()
     wti_proxy = (w * u).dropna()
-    daily_deduct = SAFETY_DEDUCT.get("wti", 0.0) / 252.0
-    if daily_deduct > 0:
-        ret = wti_proxy.pct_change().fillna(0.0) - daily_deduct
-        wti_proxy = (1 + ret).cumprod() * wti_proxy.iloc[0]
 
     return stitch_series(sc, wti_proxy, annual_deduct=0.0)
 

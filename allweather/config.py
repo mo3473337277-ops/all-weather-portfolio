@@ -52,7 +52,7 @@ ETF_META = {
     "bond_30y":  {"code": "511130", "name": "30 年国债 ETF",       "bucket": "增长↓30Y", "role": "长久期利率债"},
     "gold":      {"code": "518880", "name": "黄金 ETF",            "bucket": "通胀↑", "role": "实物黄金"},
     "nonferr":   {"code": "159980", "name": "有色金属 ETF",        "bucket": "通胀↑", "role": "工业金属"},
-    "wti":       {"code": "SC.INE", "name": "SC 原油期货",         "bucket": "通胀↑", "role": "能源商品"},
+    "wti":       {"code": "501018", "name": "南方原油 LOF",         "bucket": "通胀↑", "role": "原油LOF"},
     "copper":    {"code": "CU.SHF", "name": "沪铜期货",            "bucket": "通胀↑", "role": "工业金属"},
 }
 
