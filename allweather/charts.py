@@ -13,8 +13,8 @@ plt.rcParams.update({
     "font.family": "sans-serif",
     "font.sans-serif": ["SimHei", "Microsoft YaHei", "Noto Sans SC"],
     "axes.unicode_minus": False,
-    "figure.dpi": 72,
-    "savefig.dpi": 72,
+    "figure.dpi": 150,
+    "savefig.dpi": 150,
     "savefig.bbox": "tight",
     "savefig.facecolor": "white",
 })

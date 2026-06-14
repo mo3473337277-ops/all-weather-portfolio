@@ -109,7 +109,17 @@ BOOTSTRAP_SEED = 42
 
 # === V3c 精简资产 ===
 V3C_ASSETS = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr", "wti"]
+V3C_ASSETS_NO_WTI = ["hs300", "us_sp500", "credit", "bond_30y", "gold", "nonferr"]
 # wti — 南方原油 LOF(501018)，目前申购暂停
+
+# === 无原油桶定义（主展示用）===
+V3B_RP_BUCKETS_NO_WTI = {
+    "增长↑":   ["hs300", "us_sp500"],
+    "收益垫":  ["credit"],
+    "增长↓":   ["bond_30y"],
+    "通胀↑":   ["gold", "nonferr"],
+}
+V3B_CON_ASSETS_NO_WTI = ["hs300", "us_sp500", "credit", "bond_10y", "bond_30y", "gold", "nonferr"]
 
 # === 方案 B 常量（分层风险平价）===
 RISK_PARITY_WINDOW = 20           # V3-B 波动率窗口（交易日）

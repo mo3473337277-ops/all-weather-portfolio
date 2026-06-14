@@ -9,7 +9,10 @@ from .config import OUTPUT_DIR
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
 
-STRAT_NAMES = ["V3-B 保守增强(20d)", "V3-B 风险平价(20d)", "V3c 多元"]
+STRAT_NAMES = [
+    "V3-B 保守增强(20d)", "V3-B 风险平价(20d)", "V3c 多元",
+    "V3-B 保守增强(20d)+WTI", "V3-B 风险平价(20d)+WTI", "V3c 多元+WTI",
+]
 TIER_LABELS = ["100% RP", "85% RP", "70% RP", "动态"]
 
 
