@@ -202,7 +202,9 @@
       "Bash(where py *)",
       "Bash(\"E:/Tools/Python/python3.exe\" main.py --no-excel --no-markdown)",
       "Bash(\"E:/Tools/Python/python3.exe\" -m pip list)",
-      "Bash(\"/c/Users/MOSS/AppData/Roaming/uv/python/cpython-3.12-windows-x86_64-none/python.exe\" -c \"import pandas; print\\('ok'\\)\")"
+      "Bash(\"/c/Users/MOSS/AppData/Roaming/uv/python/cpython-3.12-windows-x86_64-none/python.exe\" -c \"import pandas; print\\('ok'\\)\")",
+      "WebFetch(domain:caifuhao.eastmoney.com)",
+      "WebFetch(domain:xueqiu.com)"
     ],
     "additionalDirectories": [
       "C:\\Users\\bc-2\\.claude\\projects\\c--Users-bc-2-Desktop-all-weather-portfolio",
