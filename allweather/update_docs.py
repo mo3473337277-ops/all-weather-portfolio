@@ -160,6 +160,7 @@ def _generate_sync_script(S):
       - 卡片: 用正则/包含匹配替换关键数字
     """
     P = {}  # {strategy_name: {tier: {...}}}
+    Y, E, B, R = {}, {}, {}, {}  # yearly, events, bootstrap, regime
 
     def _store(strat, tier, key, v):
         P.setdefault(strat, {}).setdefault(tier, {})[key] = v
@@ -177,7 +178,25 @@ def _generate_sync_script(S):
             _store(s, t, "calmar", m["calmar"])
             _store(s, t, "final_nv", m["final_nv"])
 
-    ts_json = json.dumps(P, ensure_ascii=False, cls=_NpEncoder)
+        yr = S.get(s, {}).get("yearly")
+        if yr:
+            Y[s] = {str(k): round(float(v), 6) for k, v in yr.items()}
+        ev = S.get(s, {}).get("events")
+        if ev:
+            E[s] = {str(k): round(float(v), 6) for k, v in ev.items()}
+        bt = S.get(s, {}).get("bootstrap")
+        if bt:
+            B[s] = {k: round(float(v), 6) for k, v in bt.items()}
+        rg = S.get(s, {}).get("regime")
+        if rg:
+            R[s] = rg
+
+    payload = dict(P)
+    if Y: payload["_yearly"] = Y
+    if E: payload["_events"] = E
+    if B: payload["_bootstrap"] = B
+    if R: payload["_regime"] = R
+    ts_json = json.dumps(payload, ensure_ascii=False, cls=_NpEncoder)
 
     return f"""
 <script>
@@ -425,6 +444,12 @@ if (T) {{
     setCompRow('\\u6ce2\\u52a8', pct(v['vol']),   pct(b['vol']),   pct(c['vol']));
     setCompRow('Calmar',  num(v['calmar']), num(b['calmar']), num(c['calmar']));
     setCompRow('\\u4e07',  mny(v['final_nv']), mny(b['final_nv']), mny(c['final_nv']));
+    setCompRow('5%\\u5206\\u4f4d', ps(D._bootstrap['V3c \\u591a\\u5143']['p5']), ps(D._bootstrap['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['p5']), ps(D._bootstrap['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['p5']));
+    setCompRow('\\u4e8f\\u635f\\u6982\\u7387', pct(D._bootstrap['V3c \\u591a\\u5143']['loss_prob']), pct(D._bootstrap['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['loss_prob']), pct(D._bootstrap['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['loss_prob']));
+    setCompRow('\\u6ede\\u80c0\\u60c5\\u666f', ps(D._regime['V3c \\u591a\\u5143']['\\u6ede\\u80c0\\u60c5\\u666f(\\u80a1\\u718a+\\u50ba\\u718a \\u5b63\\u5747)']['avg']), ps(D._regime['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['\\u6ede\\u80c0\\u60c5\\u666f(\\u80a1\\u718a+\\u50ba\\u718a \\u5b63\\u5747)']['avg']), ps(D._regime['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['\\u6ede\\u80c0\\u60c5\\u666f(\\u80a1\\u718a+\\u50ba\\u718a \\u5b63\\u5747)']['avg']));
+    setCompRow('2022\\u80a1\\u50ba\\u53cc\\u6740', ps(D._events['V3c \\u591a\\u5143']['2022\\u80a1\\u50ba\\u53cc\\u6740']), ps(D._events['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['2022\\u80a1\\u50ba\\u53cc\\u6740']), ps(D._events['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['2022\\u80a1\\u50ba\\u53cc\\u6740']));
+    setCompRow('2024\\u96ea\\u7403\\u5371\\u673a', ps(D._events['V3c \\u591a\\u5143']['2024\\u96ea\\u7403\\u5371\\u673a']), ps(D._events['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['2024\\u96ea\\u7403\\u5371\\u673a']), ps(D._events['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['2024\\u96ea\\u7403\\u5371\\u673a']));
+    setCompRow('2025\\u5173\\u7a0e\\u51b2\\u51fb', ps(D._events['V3c \\u591a\\u5143']['2025\\u5173\\u7a0e\\u51b2\\u51fb']), ps(D._events['V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)']['2025\\u5173\\u7a0e\\u51b2\\u51fb']), ps(D._events['V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)']['2025\\u5173\\u7a0e\\u51b2\\u51fb']));
 }}
 
 /* ==== 6. 累计收益对比（另一版本）: 找包含"累计收益"的表 ==== */
@@ -470,12 +495,6 @@ if (T) {{
         if (label.indexOf('V3c')!==-1) {{
             /* 趋势过滤列: 60d → 75d */
             if (cells[3]) cells[3].textContent = '75d SMA';
-            /* 黄金列: 已关闭 → 15%回撤2.5x */
-            if (cells[4]) cells[4].textContent = '15%\\u56de\\u62982.5x';
-        }}
-        if (label.indexOf('\\u4fdd\\u5b88\\u589e\\u5f3a')!==-1) {{
-            /* 黄金列: 已关闭 → 15%回撤2.5x */
-            if (cells[4]) cells[4].textContent = '15%\\u56de\\u62982.5x';
         }}
     }}
 }}
@@ -507,20 +526,6 @@ if (T) {{
     while (node = walker.nextNode()) {{
         if (node.textContent.indexOf('PE<30%ile')!==-1) {{
             node.textContent = node.textContent.replace(/PE<30%ile/g, 'PB<30%ile');
-        }}
-    }}
-}}());
-
-/* ==== 10. Gold dip-buying 已关闭 文本修复 ==== */
-(function(){{
-    /* 找到说 "Gold dip-buying 已关闭" 的段落 - 仅 V3-B Con 中有这句话 */
-    var ps = document.querySelectorAll('p');
-    for (var i=0;i<ps.length;i++) {{
-        if (ps[i].textContent.indexOf('Gold dip-buying \\u5df2\\u5173\\u95ed')!==-1) {{
-            ps[i].textContent = ps[i].textContent.replace(
-                'Gold dip-buying \\u5df2\\u5173\\u95ed',
-                'Gold dip-buying (15%\\u56de\\u62982.5x)'
-            );
         }}
     }}
 }}());
@@ -612,6 +617,42 @@ if (T) {{
             ps[i].textContent = txt.replace('+393%', ps(c['cum_return'],0));
         }}
         if (txt.indexOf('6.40%')!==-1) {{ }}  /* skip - handled elsewhere */
+    }}
+}}());
+
+/* ==== 13. 年度收益表同步 (方案 | 2008 | 2009 | ...) ==== */
+(function(){{
+    var tbls = document.querySelectorAll('table.data-tbl');
+    var yrTbl = null;
+    for (var i=0;i<tbls.length;i++) {{
+        var ths = tbls[i].querySelectorAll('thead th');
+        var hasYear = false, hasPlan = false;
+        for (var j=0;j<ths.length;j++) {{
+            var txt = ths[j].textContent.trim();
+            if (/^20\\d{{2}}$/.test(txt)) hasYear = true;
+            if (txt.indexOf('\\u65b9\\u6848')!==-1) hasPlan = true;
+        }}
+        if (hasYear && hasPlan) {{ yrTbl = tbls[i]; break; }}
+    }}
+    if (!yrTbl) return;
+    var ths = yrTbl.querySelectorAll('thead th');
+    var yrCols = {{}};
+    for (var i=0;i<ths.length;i++) {{
+        var txt = ths[i].textContent.trim();
+        if (/^20\\d{{2}}$/.test(txt)) yrCols[i] = txt;
+    }}
+    var sMap = {{'V3c': 'V3c \\u591a\\u5143', '\\u98ce\\u9669\\u5e73\\u4ef7': 'V3-B \\u98ce\\u9669\\u5e73\\u4ef7(20d)', '\\u4fdd\\u5b88\\u589e\\u5f3a': 'V3-B \\u4fdd\\u5b88\\u589e\\u5f3a(20d)'}};
+    var rows = yrTbl.querySelectorAll('tbody tr');
+    for (var i=0;i<rows.length;i++) {{
+        var label = rows[i].querySelector('td').textContent.trim();
+        var sk = null;
+        for (var k in sMap) {{ if (label.indexOf(k)!==-1) {{ sk = sMap[k]; break; }} }}
+        if (!sk || !D._yearly[sk]) continue;
+        var cells = rows[i].querySelectorAll('td');
+        for (var ci in yrCols) {{
+            var val = D._yearly[sk][yrCols[ci]];
+            if (val !== undefined && cells[ci]) cells[ci].textContent = ps(val);
+        }}
     }}
 }}());
 
