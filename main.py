@@ -2,7 +2,7 @@
 
 用法：
     python main.py            跑完整回测流程（默认输出 CSV/JSON/Excel/Markdown）
-    python main.py --fetch    （可选）先拉取数据再回测
+    python main.py --fetch    增量更新数据 + 回测（已有文件只补最新日期）
     python main.py --no-excel 跳过 Excel 综合报告
     python main.py --help     查看所有命令
 """
@@ -17,8 +17,8 @@ def main():
         epilog="""\
 示例:
   python main.py               跑回测（默认）
-  python main.py --fetch       先拉数据再回测
-  python main.py --fetch-only  只拉数据不回测
+  python main.py --fetch       增量更新数据 + 回测
+  python main.py --fetch-only  增量更新数据，不跑回测
   python main.py --force-fetch 重新拉取所有数据（覆盖已有 CSV）
   python main.py --no-excel    跳过 Excel 综合报告
   python main.py --no-markdown 跳过 Markdown 综合报告
@@ -27,9 +27,9 @@ def main():
 """,
     )
     parser.add_argument("--fetch", action="store_true",
-                        help="先拉取数据再回测（仅补缺失的）")
+                        help="增量更新数据 + 回测（已有文件只补最新日期）")
     parser.add_argument("--fetch-only", action="store_true",
-                        help="只拉取数据，不跑回测")
+                        help="增量更新数据，不跑回测")
     parser.add_argument("--force-fetch", action="store_true",
                         help="强制重新拉取所有数据（覆盖已有）")
     parser.add_argument("--start", default=None, metavar="YYYYMMDD",

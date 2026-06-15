@@ -221,7 +221,7 @@ def fetch_cgb_yields():
 
 
 def fetch_all(force: bool = False, start: str = DEFAULT_START, end: str = DEFAULT_END):
-    """拉取所有目标资产。
+    """拉取所有目标资产。支持增量更新 —— 已有文件只补充缺失日期。
 
     Args:
         force: True 时覆盖已有文件
@@ -232,21 +232,54 @@ def fetch_all(force: bool = False, start: str = DEFAULT_START, end: str = DEFAUL
     print(f"[fetch] 数据目录: {DATA_DIR}")
     print(f"[fetch] 拉取区间: {start} ~ {end}")
 
-    ok, errors, skipped = {}, {}, []
+    ok, errors, up_to_date = {}, [], []
+
     for name, (kind, sym) in TARGETS.items():
         path = DATA_DIR / f"{name}.csv"
         if path.exists() and not force:
-            skipped.append(name)
-            continue
-        print(f"  >> {name} ({kind}:{sym})", flush=True)
-        try:
-            df = fetch_one(name, kind, sym, start=start, end=end)
-            df.to_csv(path, index=False)
-            ok[name] = (df["date"].min(), df["date"].max(), len(df))
-            print(f"    ok  {df['date'].min().date()} → {df['date'].max().date()}  n={len(df)}")
-        except Exception as e:
-            errors[name] = str(e)[:200]
-            print(f"    ERR  {e}")
+            # 增量模式 —— 跳过已有日期，只拉新数据
+            existing = pd.read_csv(path, parse_dates=["date"])
+            if existing.empty:
+                # CSV 空文件，走全量拉取
+                print(f"  >> {name} [空文件重拉]", flush=True)
+                try:
+                    df = fetch_one(name, kind, sym, start=start, end=end)
+                    df.to_csv(path, index=False)
+                    ok[name] = (df["date"].min(), df["date"].max(), len(df))
+                    print(f"    ok  {df['date'].min().date()} → {df['date'].max().date()}  n={len(df)}")
+                except Exception as e:
+                    errors.append(f"{name}: {str(e)[:200]}")
+                continue
+            last_date = existing["date"].max()
+            next_date = last_date + pd.Timedelta(days=1)
+            if next_date >= pd.Timestamp(end):
+                up_to_date.append(name)
+                continue
+            inc_start = next_date.strftime("%Y%m%d")
+            print(f"  >> {name} 增量 {inc_start}~{end}（已有至 {last_date.date()}）", flush=True)
+            try:
+                df = fetch_one(name, kind, sym, start=inc_start, end=end)
+                if df is None or df.empty:
+                    up_to_date.append(name)
+                    continue
+                combined = pd.concat([existing, df[["date", "close"]]], ignore_index=True)
+                combined = combined.drop_duplicates(subset="date").sort_values("date").reset_index(drop=True)
+                combined.to_csv(path, index=False)
+                new_rows = len(combined) - len(existing)
+                ok[name] = (combined["date"].min(), combined["date"].max(), len(combined))
+                print(f"    ok  {combined['date'].min().date()} → {combined['date'].max().date()}  +{new_rows} 行")
+            except Exception as e:
+                errors.append(f"{name}: {str(e)[:200]}")
+        else:
+            tag = "[强制覆盖]" if force else "[首次拉取]"
+            print(f"  >> {name} {tag}", flush=True)
+            try:
+                df = fetch_one(name, kind, sym, start=start, end=end)
+                df.to_csv(path, index=False)
+                ok[name] = (df["date"].min(), df["date"].max(), len(df))
+                print(f"    ok  {df['date'].min().date()} → {df['date'].max().date()}  n={len(df)}")
+            except Exception as e:
+                errors.append(f"{name}: {str(e)[:200]}")
 
     # 尝试拉取中债国债收益率曲线
     print(f"  >> cgb_yields (bond_china_yield)", flush=True)
@@ -259,12 +292,15 @@ def fetch_all(force: bool = False, start: str = DEFAULT_START, end: str = DEFAUL
         print(f"    WARN  中债收益率曲线拉取失败，将使用久期放大回退方案合成 30Y")
 
     print(f"\n=== 拉取摘要 ===")
-    print(f"  成功: {len(ok)}    跳过(已有): {len(skipped)}    失败: {len(errors)}")
+    print(f"  成功: {len(ok)}    已最新: {len(up_to_date)}    失败: {len(errors)}")
+    if ok:
+        for name, (mn, mx, n) in ok.items():
+            print(f"    {name}: {mn.date()} → {mx.date()}  ({n} 行)")
     if errors:
         print("  失败明细:")
-        for k, v in errors.items():
-            print(f"    {k}: {v}")
-    return ok, errors, skipped
+        for e in errors:
+            print(f"    {e}")
+    return ok, errors, up_to_date
 
 
 def check_data_complete() -> bool:

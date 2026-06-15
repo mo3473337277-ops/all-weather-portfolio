@@ -771,7 +771,8 @@ def sync_readme_claude():
             continue
 
         # 优先读取模板（保留占位符），无模板时直接读主文件（首次/降级）
-        template_path = ROOT / f"{fname}.template"
+        stem = fname.replace(".md", "")
+        template_path = ROOT / f"{stem}.template.md"
         if template_path.exists():
             text = template_path.read_text(encoding="utf-8")
             source = "模板"
