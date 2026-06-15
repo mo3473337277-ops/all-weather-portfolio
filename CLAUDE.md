@@ -65,14 +65,27 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## 模型选择
 
-日常分析用当前模型（Flash）。以下场景**必须**用 Agent + `model: "opus"`：
+### 分工原则
 
-- **复杂策略分析** — 多变量对比、参数响应面解读、敏感度网格的统计推断
-- **统计诊断** — D_excess 尾部风险分析、Bootstrap 分布解读、过拟合检验
-- **回测异常排查** — 归因分析、事件期解剖、多因子分离
-- **新机制设计** — 优化闭环中"问题定义→假设→设计"前三个阶段
+| 改动类型 | 执行 | 审查 | 说明 |
+|---------|:----:|:----:|------|
+| **简单任务** | Flash 直接 | 不审查 | 改常量、更新文档、常规 commit |
+| **常规改动** | Flash Agent | Flash Agent | 策略参数调整、回测逻辑小改 — 一个改一个审，交叉检查 |
+| **重要改动** | Flash Agent | Opus Agent | 新机制实现、参数网格搜索、多变量对比 — Opus 给高层指导，Flash 执行，Opus 审结果 |
+| **核心决策** | Opus Agent 直接 | — | 问题定义→假设→设计阶段、统计诊断、D_excess、过拟合检验 |
 
-简单任务（改常量、更新文档、常规 commit）不走 Agent，直接在当前会话处理。
+### 常规改动审查流程
+
+1. Agent A（Flash）：执行改动
+2. Agent B（Flash）：独立审查，检查逻辑正确性、边界条件、是否符合 CLAUDE.md 规则
+3. 审查发现问题则回到步骤 1，通过则继续
+
+### 重要改动审查流程
+
+1. Opus Agent：分析问题、给出设计方案、参数范围建议
+2. Flash Agent：按 Opus 方案实现代码
+3. Opus Agent：审查实现、检查指标、验证稳健性
+4. 通过后进入实施 Checklist
 
 ## 命令
 
