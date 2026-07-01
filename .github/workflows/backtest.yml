@@ -29,50 +29,50 @@ jobs:
       - name: Check strategy targets
         run: |
           python3 -c "
-import json
-with open('docs/data.json', encoding='utf-8') as f:
-    d = json.load(f)
+          import json
+          with open('docs/data.json', encoding='utf-8') as f:
+              d = json.load(f)
 
-checks = {
-    'V3-B 保守增强(20d)': {'cagr': 0.07, 'mdd': -0.07, 'vol': 0.05, 'sharpe': 1.2},
-    'V3-B 风险平价(20d)': {'cagr': 0.085, 'mdd': -0.09, 'vol': 0.07},
-    'V3c 多元':          {'cagr': 0.085, 'mdd': -0.085, 'vol': 0.06},
-}
+          checks = {
+              'V3-B 保守增强(20d)': {'cagr': 0.07, 'mdd': -0.07, 'vol': 0.05, 'sharpe': 1.2},
+              'V3-B 风险平价(20d)': {'cagr': 0.085, 'mdd': -0.09, 'vol': 0.07},
+              'V3c 多元':          {'cagr': 0.085, 'mdd': -0.085, 'vol': 0.06},
+          }
 
-errors = []
-strategies = list(d['strategies'].keys())
-for s_name in strategies:
-    s = d['strategies'][s_name]
-    rp = s.get('100% RP')
-    if rp is None:
-        continue
-    cagr = rp.get('cagr', 0)
-    mdd = rp.get('mdd', 0)
-    vol = rp.get('vol', 0)
-    sharpe = rp.get('sharpe', 0)
+          errors = []
+          strategies = list(d['strategies'].keys())
+          for s_name in strategies:
+              s = d['strategies'][s_name]
+              rp = s.get('100% RP')
+              if rp is None:
+                  continue
+              cagr = rp.get('cagr', 0)
+              mdd = rp.get('mdd', 0)
+              vol = rp.get('vol', 0)
+              sharpe = rp.get('sharpe', 0)
 
-    for name, targets in checks.items():
-        if name not in s_name:
-            continue
-        cagr_target = targets.get('cagr')
-        if cagr_target and cagr < cagr_target:
-            errors.append(f'{name}: CAGR {cagr*100:.2f}% < {cagr_target*100:.0f}%')
-        mdd_target = targets.get('mdd')
-        if mdd_target and mdd < mdd_target:
-            errors.append(f'{name}: MDD {mdd*100:.2f}% < {mdd_target*100:.0f}%')
-        vol_target = targets.get('vol')
-        if vol_target and vol > vol_target:
-            errors.append(f'{name}: Vol {vol*100:.2f}% > {vol_target*100:.0f}%')
-        sharpe_target = targets.get('sharpe')
-        if sharpe_target and sharpe < sharpe_target:
-            errors.append(f'{name}: Sharpe {sharpe:.2f} < {sharpe_target:.1f}')
+              for name, targets in checks.items():
+                  if name not in s_name:
+                      continue
+                  cagr_target = targets.get('cagr')
+                  if cagr_target and cagr < cagr_target:
+                      errors.append(f'{name}: CAGR {cagr*100:.2f}% < {cagr_target*100:.0f}%')
+                  mdd_target = targets.get('mdd')
+                  if mdd_target and mdd < mdd_target:
+                      errors.append(f'{name}: MDD {mdd*100:.2f}% < {mdd_target*100:.0f}%')
+                  vol_target = targets.get('vol')
+                  if vol_target and vol > vol_target:
+                      errors.append(f'{name}: Vol {vol*100:.2f}% > {vol_target*100:.0f}%')
+                  sharpe_target = targets.get('sharpe')
+                  if sharpe_target and sharpe < sharpe_target:
+                      errors.append(f'{name}: Sharpe {sharpe:.2f} < {sharpe_target:.1f}')
 
-if errors:
-    print('FAILED:', '; '.join(errors))
-    exit(1)
-else:
-    print('All strategy targets met.')
-"
+          if errors:
+              print('FAILED:', '; '.join(errors))
+              exit(1)
+          else:
+              print('All strategy targets met.')
+          "
 
       - name: Upload backtest log
         if: always()
