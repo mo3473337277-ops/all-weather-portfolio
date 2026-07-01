@@ -8,7 +8,11 @@
 [![Backtest](https://img.shields.io/badge/backtest-2005--2026-green)]()
 </div>
 
+<div align="center">
+
 **English** | [中文](README-zh.md)
+
+</div>
 
 A risk-parity backtesting framework based on real China A-share/bond/commodity ETF data, covering **2005–2026 (~21 years of full bull-bear cycles)** with **3 deployable strategies**, each supporting 3-4 cash tiers (100% / 85% / 70% / Dynamic), totaling 11 backtests.
 
