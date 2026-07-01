@@ -36,7 +36,7 @@ with open('docs/data.json', encoding='utf-8') as f:
 checks = {
     'V3-B 保守增强(20d)': {'cagr': 0.07, 'mdd': -0.07, 'vol': 0.05, 'sharpe': 1.2},
     'V3-B 风险平价(20d)': {'cagr': 0.085, 'mdd': -0.09, 'vol': 0.07},
-    'V4 全天候杠杆':     {'cagr': 0.10, 'mdd': -0.15, 'vol': 0.09},
+    'V3c 多元':          {'cagr': 0.085, 'mdd': -0.085, 'vol': 0.06},
 }
 
 errors = []
