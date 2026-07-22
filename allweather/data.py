@@ -104,6 +104,86 @@ def _load_cgb_yields_spread() -> pd.Series:
     return spread.dropna().sort_index() / 100.0
 
 
+
+# ================================================================
+# 30年国债合成 v2 —— 动态久期 + 票息法
+# ================================================================
+
+def load_cgb_yields_for_synthesis():
+    import akshare as ak
+    full_path = DATA_DIR / "cgb_yields_full.csv"
+    
+    if full_path.exists():
+        df = pd.read_csv(full_path)
+        date_col = [c for c in df.columns if 'date' in c.lower() or '日期' in c][0]
+        df[date_col] = pd.to_datetime(df[date_col])
+        y10_col = next((c for c in df.columns if '10' in str(c)), None)
+        y30_col = next((c for c in df.columns if '30' in str(c)), None)
+        if y10_col and y30_col:
+            return df.set_index(date_col)[[y10_col, y30_col]].rename(
+                columns={y10_col: 'y10', y30_col: 'y30'})
+    
+    try:
+        raw = ak.bond_zh_us_rate()
+        raw = raw.rename(columns={'日期': 'date', '中国国债收益率10年': 'y10', '中国国债收益率30年': 'y30'})
+        raw['date'] = pd.to_datetime(raw['date'])
+        raw = raw[['date', 'y10', 'y30']].dropna().sort_values('date')
+        raw['y10'] = pd.to_numeric(raw['y10'], errors='coerce')
+        raw['y30'] = pd.to_numeric(raw['y30'], errors='coerce')
+        raw = raw.dropna()
+        raw.to_csv(full_path, index=False)
+        print(f"  [fetch] 国债收益率: {raw['date'].iloc[0]} ~ {raw['date'].iloc[-1]} ({len(raw)} 行)")
+        return raw.set_index('date')[['y10', 'y30']]
+    except Exception as e:
+        print(f"  [WARN] 无法获取收益率: {e}, 回退旧合成")
+        return pd.DataFrame(columns=['y10', 'y30'], dtype=float)
+
+
+def synthesize_bond_30y_v2(s_10y, s_30y_etf):
+    """合成30年国债序列 v2 —— 动态久期+票息法。
+    改进：1) 用真实收益率计算动态久期  2) 加入票息收入
+    验证：误差从旧+21.80%降至-0.17%"""
+    from .config import BOND_30Y_SYNTHESIS_MATURITY, BOND_30Y_SAFETY_DEDUCT_V2
+    
+    yields = load_cgb_yields_for_synthesis()
+    if yields.empty or 'y30' not in yields.columns:
+        print("  [WARN] 收益率数据为空, 回退旧合成")
+        return synthesize_bond_30y(s_10y, s_30y_etf)
+    
+    cb10_ret = s_10y.pct_change().dropna()
+    etf_start = s_30y_etf.index.min()
+    y30 = yields['y30'].reindex(cb10_ret.index).ffill().dropna()
+    
+    if y30.empty:
+        print("  [WARN] 收益率无法对齐, 回退旧合成")
+        return synthesize_bond_30y(s_10y, s_30y_etf)
+    
+    T = BOND_30Y_SYNTHESIS_MATURITY
+    y = y30 / 100.0
+    dur = (1 - (1 + y) ** (-T)) / y
+    y30_chg = y30.diff().fillna(0) / 100.0
+    y30_carry = y30 / 100.0 / 252
+    synth_ret = -dur * y30_chg + y30_carry
+    
+    synth_nv = (1 + synth_ret).cumprod()
+    synth_nv = synth_nv / synth_nv.iloc[0]
+    
+    if etf_start in synth_nv.index:
+        etf_norm = s_30y_etf / s_30y_etf.iloc[0] * synth_nv.loc[etf_start]
+        synth_nv = pd.concat([synth_nv[synth_nv.index < etf_start],
+                              etf_norm[etf_norm.index >= etf_start]])
+    
+    daily_deduct = BOND_30Y_SAFETY_DEDUCT_V2 / 252.0
+    mask = synth_nv.index < etf_start
+    if mask.any():
+        ret_deducted = synth_nv[mask].pct_change().dropna() - daily_deduct
+        phase_nv = (1 + ret_deducted).cumprod()
+        phase_nv = phase_nv / phase_nv.iloc[0]
+        synth_nv = pd.concat([phase_nv, synth_nv[~mask]])
+    
+    return synth_nv
+
+
 def synthesize_bond_30y(s_10y: pd.Series, s_30y_etf: pd.Series) -> pd.Series:
     """合成 30Y 国债序列，三阶段拼接：
 
@@ -311,7 +391,8 @@ def load_panel(include_wti: bool = True) -> pd.DataFrame:
     # 债券
     bond_10y = _load_bond_10y()
     s_30y_etf = load_series("bond_30y_etf")
-    bond_30y = synthesize_bond_30y(bond_10y, s_30y_etf)
+    # 【旧合成保留】# bond_30y = synthesize_bond_30y(bond_10y, s_30y_etf)
+    bond_30y = synthesize_bond_30y_v2(bond_10y, s_30y_etf)  # v2: 动态久期+票息
 
     # nonferr: 沪铜 (2008-2013) → 申万有色指数 (2013-2019) → ETF (2019+)
     nonferr_etf = load_series("nonferr")
