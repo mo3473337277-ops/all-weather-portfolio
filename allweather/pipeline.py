@@ -3,6 +3,7 @@
 每步独立，可单独调用；run_full_pipeline 是默认编排。
 """
 import time
+import numpy as np
 import pandas as pd
 from .data import load_panel
 
@@ -181,6 +182,10 @@ def step_3_compute_metrics(nv_results, rets, weight_history=None, signal_logs=No
 
 
 def step_4_bootstrap(rets, nv_results=None, weight_history=None):
+    """Block Bootstrap — 数据不足 1 年时自动跳过"""
+    if len(rets) < 252:
+        print("  数据不足1年，跳过 Bootstrap")
+        return {}
     """Step 4: Block Bootstrap 蒙特卡洛模拟。
 
     用回测引擎输出的最后调仓权重作代理（复用 weight_history），
@@ -198,7 +203,13 @@ def step_4_bootstrap(rets, nv_results=None, weight_history=None):
     for (portfolio, tier), _nv in (nv_results or {}).items():
         if "V3" in portfolio and tier == "100% RP":
             if weight_history is not None and portfolio in weight_history:
-                proxy_w = weight_history[portfolio].iloc[-1]
+                wh = weight_history[portfolio]
+                if len(wh) == 0:
+                    # 极短期回测，无调仓记录，跳过 bootstrap
+                    print(f"  [WARN] {portfolio} 无权重历史，跳过 bootstrap")
+                    boot[portfolio] = {'cagr_median': float('nan'), 'loss_prob': float('nan')}
+                    continue
+                proxy_w = wh.iloc[-1]
             else:
                 boot_rets = rets
                 if "保守增强" in portfolio:
