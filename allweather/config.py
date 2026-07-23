@@ -7,8 +7,8 @@ DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
 
 # === 回测期间 ===
-BACKTEST_START = "2025-07-01"
-BACKTEST_END   = "2026-07-01"
+BACKTEST_START = "2022-01-01"
+BACKTEST_END   = "2026-07-23"
 
 # === 30 年国债合成参数 ===
 # 2024-03 之前没有 30Y ETF 数据，用 10Y 国债指数 × 久期放大系数合成
