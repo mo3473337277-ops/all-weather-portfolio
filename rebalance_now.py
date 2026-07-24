@@ -13,7 +13,7 @@
   - 主接口失败自动降级到备用接口
   - 少 2-3 天数据不影响回测和调仓
 """
-import os, sys, time
+import os, sys, time, random
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 sys.path.insert(0, str(ROOT))
 
-GRACE_DAYS = 3  # 数据差 N 天以内不强制重拉
+GRACE_DAYS = 0  # 数据差 N 天以内不强制重拉
 
 def update_data():
     import akshare as ak
@@ -73,24 +73,40 @@ def update_data():
             sk += 1; continue
         ok = False
         # 主接口
-        try:
-            new = ak.fund_etf_hist_em(symbol=code, period='daily', start_date=last.strftime("%Y%m%d"), end_date=today_str)
-            if len(new) > 0:
-                new = new.rename(columns={'日期':'date','收盘':'close'})
-                new['date'] = pd.to_datetime(new['date'])
-                new = new[['date','close']].dropna()
-                ex = pd.concat([ex,new]).drop_duplicates('date').sort_values('date')
-                ex.to_csv(fp, index=False)
-                print(f"    ✅ {name}: +{len(new)}行 → {ex['date'].iloc[-1].strftime('%Y-%m-%d')}")
-                up += 1; ok = True
-        except: pass
+        # 主接口（拟人重试）
+        for attempt in range(2):
+            try:
+                new = ak.fund_etf_hist_em(symbol=code, period='daily', start_date=last.strftime("%Y%m%d"), end_date=today_str)
+                if len(new) > 0:
+                    new = new.rename(columns={'日期':'date','收盘':'close'})
+                    new['date'] = pd.to_datetime(new['date'])
+                    new = new[['date','close']].dropna()
+                    ex = pd.concat([ex,new]).drop_duplicates('date').sort_values('date')
+                    ex.to_csv(fp, index=False)
+                    print(f"    ✅ {name}: +{len(new)}行 → {ex['date'].iloc[-1].strftime('%Y-%m-%d')}")
+                    up += 1; ok = True
+                break
+            except:
+                if attempt == 0:
+                    time.sleep(random.uniform(2.0, 4.0))
+
         # 备用接口
         if not ok:
             try:
                 new = ak.fund_etf_fund_info_em(fund=code, start_date=last.strftime("%Y%m%d"), end_date=today_str)
                 if len(new) > 0:
                     nc = new.columns.tolist()
-                    new = new.rename(columns={nc[0]:'date', nc[1]:'close'})
+                    # 按列名匹配，不按位置盲取
+                    date_col = next((c for c in nc if '日期' in c or 'date' in str(c).lower()), nc[0])
+                    val_col = next((c for c in nc if '单位净值' in c), next((c for c in nc if '净值' in c), nc[1]))
+                    new = new.rename(columns={date_col:'date', val_col:'close'})
+                    new['close'] = pd.to_numeric(new['close'], errors='coerce')
+
+                    # ✅ 异常值拦截：新值不能超过近60日均值的 3 倍
+                    if len(ex) >= 30:
+                        ref_mean = ex[vc].tail(60).mean()
+                        new = new[new['close'] < ref_mean * 3]  # 过滤掉累计净值之类
+
                     new['date'] = pd.to_datetime(new['date'], errors='coerce')
                     new['close'] = pd.to_numeric(new['close'], errors='coerce')
                     new = new[['date','close']].dropna()
@@ -105,7 +121,8 @@ def update_data():
                 print(f"    ⏭️ {name}: 差{gap}天，容差内跳过"); sk += 1
             else:
                 print(f"    ❌ {name}: 差{gap}天，接口均失败"); fl += 1
-        time.sleep(0.3)
+        time.sleep(random.uniform(1.0, 2.5))
+
 
     # ---- PE/PB ----
     print("\n  [3/3] PE/PB 估值...")
